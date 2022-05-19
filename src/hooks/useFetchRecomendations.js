@@ -7,7 +7,6 @@ export const useFetchRecomendations = () => {
         loading: true
     });
 
-    console.log();
     useEffect(() => {
         getRecomendations()
             .then(imgs => {
