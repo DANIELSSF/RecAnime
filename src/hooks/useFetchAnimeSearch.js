@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react"
 import { getAnimeSearch } from "../helpers/getAnimeSearch";
 
-const useFetchAnimeSearch = (animeName) => {
+export const useFetchAnimeSearch = (name) => {
     const [animeSearch, setAnimeSearch] = useState({
         data: []
     });
 
     useEffect(() => {
-        getAnimeSearch(animeName)
+        getAnimeSearch(name)
             .then(anime => {
                 setAnimeSearch({
                     data: anime
                 });
             });
 
-    }, [animeName]);
+    }, [name]);
 
     return animeSearch;
 }
