@@ -4,7 +4,8 @@ import { AnimeSearchGrid } from './components/AnimeSearchGrid';
 import { Recomendations } from './components/Recomendations';
 
 export const RecAnime = () => {
-    const [animeSearch, setAnimeSearch] = useState(['']);
+    const [animeSearch, setAnimeSearch] = useState({ data: '', state: false });
+    const { data, state } = animeSearch;
 
 
     return (
@@ -14,11 +15,11 @@ export const RecAnime = () => {
             <hr />
             <ol>
                 {
-                        animeSearch.map(name =>
-                            <AnimeSearchGrid
-                                key={name}
-                                name={name} />)
+                    state &&
+                    <AnimeSearchGrid
+                        name={data} />
                 }
+
             </ol>
             <h2>Animes Recomendados!</h2>
             <ol>
