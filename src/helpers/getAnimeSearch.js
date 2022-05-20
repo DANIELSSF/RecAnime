@@ -5,11 +5,10 @@ export const getAnimeSearch = async (name) => {
     const resp = await fetch(url);
     const { data } = await resp.json();
 
-
     const nameAnime = data.map(anime => {
         return {
             id: anime.mal_id,
-            img: anime.images.large_image_url,
+            url: anime.images?.jpg.large_image_url,
             title: anime.title,
             source: anime.source,
             episodes: anime.episodes,
