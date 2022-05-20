@@ -4,6 +4,7 @@ export const getRecomendations = async () => {
     const resp = await fetch(url);
     const { data } = await resp.json();
 
+    
     const recomendations = data.map(img => {
         return {
             idkey:img.mal_id,
