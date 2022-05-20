@@ -1,4 +1,3 @@
-
 export const getAnimeSearch = async (name) => {
 
     const url = `https://api.jikan.moe/v4/anime?q=${name}`;
@@ -20,3 +19,4 @@ export const getAnimeSearch = async (name) => {
     })
     return nameAnime;
 }
+
