@@ -4,7 +4,7 @@ import PropTypes from 'prop-types'
 export const AnimeSearch = ({ setAnimeSearch }) => {
     const [inputAnimeSearch, setInputAnimeSearch] = useState('');
 
-    const handleSearchAnime = (e) => {  
+    const handleSearchAnime = (e) => {
         setInputAnimeSearch(e.target.value);
     }
     const handleSubmitAnime = (e) => {
@@ -12,7 +12,7 @@ export const AnimeSearch = ({ setAnimeSearch }) => {
 
         if (inputAnimeSearch.trim().length > 2) {
 
-            setAnimeSearch(() => [inputAnimeSearch]);
+            setAnimeSearch({ data: inputAnimeSearch, state: true });
             setInputAnimeSearch('');
         }
 
@@ -21,7 +21,7 @@ export const AnimeSearch = ({ setAnimeSearch }) => {
         <>
             <form onSubmit={handleSubmitAnime}>
 
-                <input type='text'
+            <input type='text'
                     value={inputAnimeSearch}
                     onChange={handleSearchAnime}>
 
@@ -31,6 +31,6 @@ export const AnimeSearch = ({ setAnimeSearch }) => {
     )
 
 }
-AnimeSearch.propTypes={
+AnimeSearch.propTypes = {
     setAnimeSearch: PropTypes.func.isRequired
 }
