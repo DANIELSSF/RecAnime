@@ -4,7 +4,6 @@ import { RecomendationsItem } from './RecomendationsItem';
 
 export const Recomendations = () => {
     const { data: images, loading } = useFetchRecomendations();
-    console.log(images)
     return (
         <>
             {loading && <p className='animate__animated animate__zoomIn'>Loading...</p>}
