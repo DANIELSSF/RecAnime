@@ -27,7 +27,8 @@ input {
   margin-right: 10px;
   overflow: hidden;
   width: 300px;
-  max-height: 360px;
+  height: 354px;
+  max-height: 400px;
   max-width: 205px;
 }
 
@@ -55,7 +56,7 @@ input {
   margin-bottom: 10px;
   margin-right: 10px;
   max-height: 600px;
-  max-width: 400px;
+  max-width: 410px;
   overflow: auto;
   padding: 10px;
   width: 255px;

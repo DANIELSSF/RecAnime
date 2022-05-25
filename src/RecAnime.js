@@ -10,24 +10,25 @@ export const RecAnime = () => {
 
     return (
         <>
-            <h1> RecAnime </h1>
-            <AnimeSearch setAnimeSearch={setAnimeSearch} />
-            <hr />
-            <ol>
-                {
-                    state &&
-                    <AnimeSearchGrid
-                        name={data} />
-                }
+            <div className='container-sm'>
+                <h1 ><strong> RecAnime </strong></h1>
+                <AnimeSearch setAnimeSearch={setAnimeSearch} />
+                <hr />
+                <ol>
+                    {
+                        state &&
+                        <AnimeSearchGrid
+                            name={data} />
+                    }
 
-            </ol>
-            <h2>Animes Recomendados!</h2>
-            <ol>
-                {
-                    <Recomendations />
-                }
-            </ol>
-
+                </ol>
+                <h2>Animes Recomendados!</h2>
+                <ol>
+                    {
+                        <Recomendations />
+                    }
+                </ol>
+            </div>
         </>
     );
 
