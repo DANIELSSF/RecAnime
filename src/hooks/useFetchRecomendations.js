@@ -1,24 +1,22 @@
 import { useEffect, useState } from "react";
-import { getRecomendations } from "../helpers/getRecomendations";
+import { useRecomendations } from "./useRecomendations";
+
 
 export const useFetchRecomendations = () => {
+    const result = useRecomendations();
+    console.log(result)
+
     const [state, setState] = useState({
         data: [],
-        loading: true
+        loading: false
     });
 
     useEffect(() => {
-        getRecomendations()
-            .then(imgs => {
-                setState({
-                    data: imgs,
-                    loading: false
-                });
-
+            setState({
+                data: result,
+                loading: true
             });
-
-
-    }, []);
+    }, [result.length>1]);
 
     return state;
 
