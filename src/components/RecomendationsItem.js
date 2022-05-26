@@ -1,14 +1,12 @@
 import React from 'react'
 
-export const RecomendationsItem = ({ id1, id2, title1, title2, url1, url2 }) => {
-
+export const RecomendationsItem = ( {images,title} ) => {
+    
     return (
         <>
             <div className='card'>
-                <img src={url1} alt={title1}></img>
-                <p>{title1}</p>
-                <img src={url2} alt={title2}></img>
-                <p>{title2}</p>
+                <img src={images} alt={title}></img>
+                <p><strong>{title}</strong></p>
             </div>
         </>
     );
