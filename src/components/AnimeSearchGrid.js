@@ -9,7 +9,7 @@ export const AnimeSearchGrid = ({ name }) => {
 
     return (
         <>
-            <h3 className='card-grid animate__animated animate__bounce'>Anime encontrado: {name}</h3>
+            <h3 className='card-grid animate__animated animate__bounce'>Anime: {name}</h3>
             <div>
                 {
                     data.map(anime => (
