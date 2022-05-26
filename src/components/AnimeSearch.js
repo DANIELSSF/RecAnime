@@ -21,7 +21,11 @@ export const AnimeSearch = ({ setAnimeSearch }) => {
         <>
             <form onSubmit={handleSubmitAnime}>
 
-            <input type='text'
+                <input
+                    className='form-control'
+                    placeholder='Buscar Anime...'
+
+                    type='text'
                     value={inputAnimeSearch}
                     onChange={handleSearchAnime}>
 
