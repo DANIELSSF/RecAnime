@@ -92,7 +92,7 @@ targets:
       - package: GoogleSignIn
         product: GoogleSignIn
     scheme:
-      testTargets: [RecAnimeTests]
+      testTargets: [RecAnimeTests, RecAnimeUITests]
       gatherCoverageData: true
 
   RecAnimeWatch:
@@ -179,3 +179,14 @@ targets:
       - target: RecAnime
       - package: RecAnimeKit
         product: RecAnimeKitTesting
+
+  RecAnimeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RecAnimeUITests]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.uitests
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+    dependencies:
+      - target: RecAnime

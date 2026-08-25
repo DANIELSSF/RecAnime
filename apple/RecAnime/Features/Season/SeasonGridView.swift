@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Three-column poster grid with infinite scroll for a season.
 struct SeasonGridView: View {
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     let kind: SeasonKind
     @State private var loader: PagedLoader<AnimeSummary>
@@ -21,7 +22,7 @@ struct SeasonGridView: View {
     }
 
     var body: some View {
-        AnimeGrid(loader: loader) { router.open(anime: $0.malId) }
+        AnimeGrid(loader: loader) { router.open($0, source: "grid-\($0.malId)", remembering: deps.summaries) }
             .navigationTitle(kind.title)
             .navigationBarTitleDisplayMode(.large)
             .task {
@@ -55,6 +56,7 @@ struct AnimeGrid: View {
                             GridPoster(anime: anime)
                         }
                         .buttonStyle(.plain)
+                        .zoomSource("grid-\(anime.malId)")
                         .task { await loader.loadMoreIfNeeded(currentItem: anime) }
                     }
                 }

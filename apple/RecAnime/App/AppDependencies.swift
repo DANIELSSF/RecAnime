@@ -20,6 +20,7 @@ final class AppDependencies {
     let watchSync: PhoneWatchSync
     let snapshots = SnapshotCache()
     let router = Router()
+    let summaries = SummaryCache()
 
     var isDevBypass: Bool {
         session == nil

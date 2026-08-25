@@ -59,7 +59,7 @@ struct SeasonView: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: Theme.Spacing.m) {
                     ForEach(library.groups.watching.prefix(10)) { item in
-                        Button { router.open(anime: item.anime.malId) } label: {
+                        Button { router.open(item.anime, source: "continue-\(item.anime.malId)", remembering: deps.summaries) } label: {
                             PosterCard(
                                 title: item.anime.title,
                                 subtitle: progressLabel(item),
@@ -68,6 +68,8 @@ struct SeasonView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .zoomSource("continue-\(item.anime.malId)")
+                        .accessibilityIdentifier("poster-continue-\(item.anime.malId)")
                         .contextMenu {
                             Button("Marcar episodio visto", systemImage: "plus") { library.increment(for: item.anime) }
                             Button("Marcar temporada vista", systemImage: "checkmark") {
@@ -78,6 +80,7 @@ struct SeasonView: View {
                 }
                 .padding(.horizontal, Theme.Spacing.l)
                 .scrollTargetLayout()
+                .animation(.snappy, value: library.version)
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollIndicators(.hidden)
@@ -95,8 +98,8 @@ struct SeasonView: View {
             case let .failed(error) where loader.items.isEmpty:
                 ErrorBanner(message: error.userMessage) { Task { await loader.loadFirst() } }
             default:
-                PosterCarousel(items: loader.items) { anime in
-                    router.open(anime: anime.malId)
+                PosterCarousel(items: loader.items, sourcePrefix: kind == .now ? "season-now" : "season-upcoming") { anime in
+                    router.open(anime, source: "\(kind == .now ? "season-now" : "season-upcoming")-\(anime.malId)", remembering: deps.summaries)
                 }
             }
         }
@@ -145,6 +148,7 @@ struct SeasonView: View {
 /// Horizontal poster carousel shared by the home sections.
 struct PosterCarousel: View {
     let items: [AnimeSummary]
+    var sourcePrefix: String = "carousel"
     let onSelect: (AnimeSummary) -> Void
 
     var body: some View {
@@ -155,6 +159,8 @@ struct PosterCarousel: View {
                         PosterCard(title: anime.title, subtitle: subtitle(anime), imageURL: anime.imageURL)
                     }
                     .buttonStyle(.plain)
+                    .zoomSource("\(sourcePrefix)-\(anime.malId)")
+                    .accessibilityIdentifier("poster-\(sourcePrefix)-\(anime.malId)")
                 }
             }
             .padding(.horizontal, Theme.Spacing.l)

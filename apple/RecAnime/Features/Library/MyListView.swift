@@ -36,6 +36,7 @@ struct MyListView: View {
         }
     }
 
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @Environment(LibraryStore.self) private var library
     @State private var segment: Segment = .watching
@@ -49,33 +50,39 @@ struct MyListView: View {
                 .font(.footnote).foregroundStyle(.secondary)
                 .listRowSeparator(.hidden)
             ForEach(items) { item in
-                Button { router.open(anime: item.anime.malId) } label: { LibraryRow(item: item) }
-                    .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets(top: 10, leading: Theme.Spacing.l, bottom: 10, trailing: Theme.Spacing.l))
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if item.entry.status == .watching {
-                            Button("+1", systemImage: "plus") { library.increment(for: item.anime) }.tint(Theme.accent)
+                Button { router.open(item.anime, source: "library-\(item.anime.malId)", remembering: deps.summaries) } label: {
+                    LibraryRow(item: item)
+                }
+                .buttonStyle(.plain)
+                .zoomSource("library-\(item.anime.malId)", cornerRadius: Theme.Radius.thumb)
+                .accessibilityIdentifier("library-row-\(item.anime.malId)")
+                .listRowInsets(EdgeInsets(top: 10, leading: Theme.Spacing.l, bottom: 10, trailing: Theme.Spacing.l))
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    if item.entry.status == .watching {
+                        Button("+1", systemImage: "plus") { library.increment(for: item.anime) }.tint(Theme.accent)
+                    }
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(item.entry.favorite ? "Quitar favorito" : "Favorito", systemImage: item.entry.favorite ? "heart.slash" : "heart") {
+                        run { _ = try await library.toggleFavorite(for: item.anime) }
+                    }
+                    .tint(Theme.favorite)
+                    Button("Quitar", systemImage: "trash", role: .destructive) {
+                        run { try await library.remove(item.anime.malId) }
+                    }
+                }
+                .contextMenu {
+                    ForEach([WatchStatus.pending, .watching, .watched], id: \.self) { status in
+                        Button(status.spanish, systemImage: status == item.entry.status ? "checkmark" : "") {
+                            run { _ = try await library.setStatus(status, for: item.anime) }
                         }
                     }
-                    .swipeActions(edge: .trailing) {
-                        Button(item.entry.favorite ? "Quitar favorito" : "Favorito", systemImage: item.entry.favorite ? "heart.slash" : "heart") {
-                            run { _ = try await library.toggleFavorite(for: item.anime) }
-                        }
-                        .tint(Theme.favorite)
-                        Button("Quitar", systemImage: "trash", role: .destructive) {
-                            run { try await library.remove(item.anime.malId) }
-                        }
-                    }
-                    .contextMenu {
-                        ForEach([WatchStatus.pending, .watching, .watched], id: \.self) { status in
-                            Button(status.spanish, systemImage: status == item.entry.status ? "checkmark" : "") {
-                                run { _ = try await library.setStatus(status, for: item.anime) }
-                            }
-                        }
-                    }
+                }
             }
         }
         .listStyle(.plain)
+        .animation(.snappy, value: library.version)
+        .animation(.snappy, value: segment)
         .overlay {
             if items.isEmpty {
                 if library.isLoading {
@@ -173,6 +180,8 @@ struct LibraryRow: View {
             Spacer(minLength: 0)
             Image(systemName: item.entry.favorite ? "heart.fill" : "heart")
                 .foregroundStyle(item.entry.favorite ? Theme.favorite : Color(.tertiaryLabel))
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, value: item.entry.favorite)
                 .accessibilityLabel(item.entry.favorite ? "Favorito" : "No favorito")
         }
         .contentShape(Rectangle())

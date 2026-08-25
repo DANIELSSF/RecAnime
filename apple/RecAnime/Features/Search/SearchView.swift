@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Search tab (system search role): debounced query, recent searches.
 struct SearchView: View {
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     let api: any RecAnimeAPI
     @State private var query = ""
@@ -19,9 +20,15 @@ struct SearchView: View {
         List {
             if let loader, trimmed.count >= 3 {
                 ForEach(loader.items) { anime in
-                    Button { remember(trimmed); router.open(anime: anime.malId) } label: { RankedAnimeRow(rank: nil, anime: anime) }
-                        .buttonStyle(.plain)
-                        .task { await loader.loadMoreIfNeeded(currentItem: anime) }
+                    Button { remember(trimmed); router.open(anime, source: "search-\(anime.malId)", remembering: deps.summaries) } label: {
+                        RankedAnimeRow(
+                            rank: nil,
+                            anime: anime
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .zoomSource("search-\(anime.malId)", cornerRadius: Theme.Radius.thumb)
+                    .task { await loader.loadMoreIfNeeded(currentItem: anime) }
                 }
                 if loader.state == .loadingMore {
                     ProgressView().frame(maxWidth: .infinity)

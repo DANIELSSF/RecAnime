@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Live community recommendation pairs from MyAnimeList.
 struct RecommendationsView: View {
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @State private var loader: PagedLoader<Recommendation>
     @State private var showsSettings = false
@@ -17,8 +18,11 @@ struct RecommendationsView: View {
         ScrollView {
             LazyVStack(spacing: Theme.Spacing.l) {
                 ForEach(loader.items) { rec in
-                    RecommendationCard(recommendation: rec) { router.open(anime: $0) }
-                        .task { await loader.loadMoreIfNeeded(currentItem: rec) }
+                    RecommendationCard(recommendation: rec) { entry in
+                        deps.summaries.remember(entry)
+                        router.open(anime: entry.malId, source: "rec-\(rec.id)-\(entry.malId)")
+                    }
+                    .task { await loader.loadMoreIfNeeded(currentItem: rec) }
                 }
                 if loader.state == .loadingMore {
                     ProgressView().padding()
@@ -57,7 +61,7 @@ struct RecommendationsView: View {
 
 struct RecommendationCard: View {
     let recommendation: Recommendation
-    let onSelect: (Int) -> Void
+    let onSelect: (RecommendationEntry) -> Void
     @State private var expanded = false
 
     var body: some View {
@@ -73,9 +77,10 @@ struct RecommendationCard: View {
                             .foregroundStyle(Theme.accent)
                             .frame(height: 150)
                     }
-                    Button { onSelect(entry.malId) } label: {
+                    Button { onSelect(entry) } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             PosterImage(url: entry.imageURL, width: 100, height: 150)
+                                .zoomSource("rec-\(recommendation.id)-\(entry.malId)")
                             Text(entry.title).font(.footnote.weight(.semibold)).lineLimit(2, reservesSpace: true).frame(
                                 width: 100,
                                 alignment: .leading

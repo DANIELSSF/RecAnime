@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Anime page: hero, glass action cluster, franchise chain, synopsis and facts.
 struct AnimeDetailView: View {
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @Environment(LibraryStore.self) private var library
     let malID: Int
@@ -19,6 +20,19 @@ struct AnimeDetailView: View {
         ScrollView {
             if let detail {
                 content(detail)
+            } else if let seed = deps.summaries[malID], error == nil {
+                // Instant paint during the zoom transition; the full record replaces it when loaded.
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    DetailHero(imageURL: seed.imageLargeURL, fallbackURL: seed.imageURL)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(seed.title).font(.title.bold())
+                        if let english = seed.titleEnglish, english != seed.title {
+                            Text(english).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.l)
+                    ProgressView().frame(maxWidth: .infinity).padding(.top, Theme.Spacing.xl)
+                }
             } else if let error {
                 EmptyStateView(
                     title: "No se pudo cargar",
@@ -70,7 +84,7 @@ struct AnimeDetailView: View {
     private func content(_ detail: AnimeDetail) -> some View {
         let entry = library.items[detail.malId]
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            DetailHero(detail: detail)
+            DetailHero(imageURL: detail.imageLargeURL, fallbackURL: deps.summaries[detail.malId]?.imageURL ?? detail.imageURL)
             titleBlock(detail)
             DetailActionCluster(detail: detail, entry: entry, onFinishedSeason: { showsNextSeasonDialog = true }, report: { actionError = $0 })
                 .padding(.horizontal, Theme.Spacing.l)
@@ -178,13 +192,21 @@ struct AnimeDetailView: View {
 
 /// Large poster whose mirrored blur fills the area behind the toolbar.
 private struct DetailHero: View {
-    let detail: AnimeDetail
+    let imageURL: URL?
+    /// Smaller artwork the list already cached; shown while the large image downloads so the zoom stays continuous.
+    var fallbackURL: URL?
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            AsyncImage(url: detail.imageLargeURL) { phase in
+            AsyncImage(url: imageURL) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
+                } else if let fallbackURL {
+                    AsyncImage(url: fallbackURL) { fallback in
+                        fallback.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Rectangle().fill(Theme.heroGradient.opacity(0.4))
+                    }
                 } else {
                     Rectangle().fill(Theme.heroGradient.opacity(0.4))
                 }
@@ -239,6 +261,7 @@ struct DetailActionCluster: View {
                                     .background(candidate == status ? Theme.accent : .clear, in: Capsule())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("detail.status.\(candidate.rawValue)")
                             .accessibilityAddTraits(candidate == status ? .isSelected : [])
                         }
                     }
@@ -255,9 +278,11 @@ struct DetailActionCluster: View {
                             .frame(width: 44, height: 44)
                             .foregroundStyle(favorite ? Theme.favorite : .primary)
                             .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.bounce, value: favorite)
                     }
                     .buttonStyle(.glass)
                     .glassEffectID("favorite", in: namespace)
+                    .accessibilityIdentifier("detail.favorite")
                     .accessibilityLabel(favorite ? "Quitar de favoritos" : "Añadir a favoritos")
                 }
                 if status == .watching {
@@ -266,6 +291,7 @@ struct DetailActionCluster: View {
                             Image(systemName: "minus").frame(width: 36, height: 36)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("detail.episode.minus")
                         .disabled(watched == 0)
                         .accessibilityLabel("Un episodio menos")
                         Spacer()
@@ -287,6 +313,7 @@ struct DetailActionCluster: View {
                             Image(systemName: "plus").frame(width: 36, height: 36).foregroundStyle(Theme.accent)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("detail.episode.plus")
                         .sensoryFeedback(.increase, trigger: watched)
                         .accessibilityLabel("Marcar episodio visto")
                     }
@@ -325,9 +352,19 @@ struct DetailActionCluster: View {
 
 /// Horizontal chain of seasons/movies with the current position highlighted.
 struct FranchiseChainSection: View {
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     let malID: Int
     let franchise: Franchise
+
+    /// Opens a chain entry, seeding the detail page when the anime is cached.
+    private func open(_ entry: FranchiseEntry) {
+        guard entry.malId != malID else { return }
+        if let anime = entry.anime {
+            deps.summaries.remember(anime)
+        }
+        router.open(anime: entry.malId, source: "franchise-\(malID)-\(entry.malId)")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
@@ -341,12 +378,13 @@ struct FranchiseChainSection: View {
                     ForEach(Array(franchise.entries.enumerated()), id: \.element.id) { index, entry in
                         Button {
                             if entry.malId != malID {
-                                router.open(anime: entry.malId)
+                                open(entry)
                             }
                         } label: {
                             FranchiseCard(entry: entry, isCurrent: index == franchise.currentIndex, isNext: index == franchise.currentIndex + 1)
                         }
                         .buttonStyle(.plain)
+                        .zoomSource("franchise-\(malID)-\(entry.malId)")
                         .disabled(!entry.resolved && entry.malId == malID)
                     }
                 }

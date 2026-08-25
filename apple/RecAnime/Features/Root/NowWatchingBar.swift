@@ -6,6 +6,7 @@ import SwiftUI
 /// "Viendo ahora" mini bar inside the tab bar's bottom accessory (like Music's mini player).
 struct NowWatchingBar: View {
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @Environment(LibraryStore.self) private var library
     let item: RecAnimeCore.LibraryItem
@@ -13,6 +14,7 @@ struct NowWatchingBar: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.m) {
             Button {
+                deps.summaries.remember(item.anime)
                 router.open(anime: item.anime.malId)
             } label: {
                 HStack(spacing: Theme.Spacing.m) {
@@ -33,6 +35,7 @@ struct NowWatchingBar: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("nowWatching.open")
             Button {
                 library.increment(for: item.anime)
             } label: {
@@ -43,6 +46,7 @@ struct NowWatchingBar: View {
             }
             .buttonStyle(.plain)
             .sensoryFeedback(.increase, trigger: item.entry.episodesWatched)
+            .accessibilityIdentifier("nowWatching.increment")
             .accessibilityLabel("Marcar episodio visto")
         }
         .padding(.horizontal, Theme.Spacing.m)

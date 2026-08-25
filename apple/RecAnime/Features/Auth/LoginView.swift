@@ -1,6 +1,7 @@
 import RecAnimeKit
 import RecAnimeUI
 import SwiftUI
+import UIKit
 
 /// Full-screen sign in: one glass button over a soft accent glow.
 struct LoginView: View {
@@ -41,7 +42,7 @@ struct LoginView: View {
                             if isSigningIn {
                                 ProgressView().tint(.primary)
                             } else {
-                                Image(systemName: "g.circle.fill")
+                                GoogleLogo().frame(width: 20, height: 20)
                             }
                             Text("Continuar con Google").font(.headline)
                         }
@@ -95,6 +96,23 @@ struct LoginView: View {
             // User dismissed the Google sheet.
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// Google "G" from the GoogleSignIn SDK resource bundle (the official asset), with a text fallback.
+struct GoogleLogo: View {
+    private static let image: UIImage? = {
+        guard let url = Bundle.main.url(forResource: "GoogleSignIn_GoogleSignIn", withExtension: "bundle"),
+              let bundle = Bundle(url: url) else { return nil }
+        return UIImage(named: "google", in: bundle, with: nil)
+    }()
+
+    var body: some View {
+        if let image = Self.image {
+            Image(uiImage: image).resizable().scaledToFit().accessibilityHidden(true)
+        } else {
+            Text("G").font(.headline.weight(.bold)).foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96)) // Google brand blue (allowed)
         }
     }
 }

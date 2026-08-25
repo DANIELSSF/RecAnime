@@ -22,6 +22,7 @@ struct TopView: View {
         }
     }
 
+    @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     let api: any RecAnimeAPI
     @State private var filter: Filter = .score
@@ -36,10 +37,11 @@ struct TopView: View {
     var body: some View {
         List {
             ForEach(Array(loader.items.enumerated()), id: \.element.id) { index, anime in
-                Button { router.open(anime: anime.malId) } label: {
+                Button { router.open(anime, source: "top-\(anime.malId)", remembering: deps.summaries) } label: {
                     RankedAnimeRow(rank: index + 1, anime: anime)
                 }
                 .buttonStyle(.plain)
+                .zoomSource("top-\(anime.malId)", cornerRadius: Theme.Radius.thumb)
                 .listRowInsets(EdgeInsets(top: 10, leading: Theme.Spacing.l, bottom: 10, trailing: Theme.Spacing.l))
                 .task { await loader.loadMoreIfNeeded(currentItem: anime) }
             }
@@ -86,7 +88,8 @@ struct TopView: View {
             GlassEffectContainer(spacing: Theme.Spacing.s) {
                 HStack(spacing: Theme.Spacing.s) {
                     ForEach(Filter.allCases) { item in
-                        FilterChip(title: item.title, isSelected: item == filter) { filter = item }
+                        FilterChip(title: item.title, isSelected: item == filter) { withAnimation(.snappy) { filter = item } }
+                            .accessibilityIdentifier("top.filter.\(item.rawValue.isEmpty ? "score" : item.rawValue)")
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.l)

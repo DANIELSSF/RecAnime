@@ -7,34 +7,29 @@ struct MainTabView: View {
     @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @Environment(LibraryStore.self) private var library
+    @Namespace private var seasonZoom
+    @Namespace private var topZoom
+    @Namespace private var recommendationsZoom
+    @Namespace private var libraryZoom
+    @Namespace private var searchZoom
 
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
             Tab("Temporada", systemImage: "calendar", value: AppTab.season) {
-                NavigationStack(path: router.path(for: .season)) {
-                    SeasonView(api: deps.api).navigationDestination(for: Route.self) { RouteView(route: $0) }
-                }
+                stack(for: .season, namespace: seasonZoom) { SeasonView(api: deps.api) }
             }
             Tab("Top", systemImage: "trophy", value: AppTab.top) {
-                NavigationStack(path: router.path(for: .top)) {
-                    TopView(api: deps.api).navigationDestination(for: Route.self) { RouteView(route: $0) }
-                }
+                stack(for: .top, namespace: topZoom) { TopView(api: deps.api) }
             }
             Tab("Recomendados", systemImage: "sparkles", value: AppTab.recommendations) {
-                NavigationStack(path: router.path(for: .recommendations)) {
-                    RecommendationsView(api: deps.api).navigationDestination(for: Route.self) { RouteView(route: $0) }
-                }
+                stack(for: .recommendations, namespace: recommendationsZoom) { RecommendationsView(api: deps.api) }
             }
             Tab("Mi lista", systemImage: "bookmark", value: AppTab.library) {
-                NavigationStack(path: router.path(for: .library)) {
-                    MyListView().navigationDestination(for: Route.self) { RouteView(route: $0) }
-                }
+                stack(for: .library, namespace: libraryZoom) { MyListView() }
             }
             Tab(value: AppTab.search, role: .search) {
-                NavigationStack(path: router.path(for: .search)) {
-                    SearchView(api: deps.api).navigationDestination(for: Route.self) { RouteView(route: $0) }
-                }
+                stack(for: .search, namespace: searchZoom) { SearchView(api: deps.api) }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -45,6 +40,14 @@ struct MainTabView: View {
         }
         .task { await library.load() }
     }
+
+    /// One NavigationStack per tab sharing a zoom namespace with its destinations.
+    private func stack(for tab: AppTab, namespace: Namespace.ID, @ViewBuilder root: () -> some View) -> some View {
+        NavigationStack(path: router.path(for: tab)) {
+            root().navigationDestination(for: Route.self) { RouteView(route: $0) }
+        }
+        .environment(\.zoomNamespace, namespace)
+    }
 }
 
 /// Maps routes to screens (shared by every tab's NavigationStack).
@@ -54,8 +57,9 @@ struct RouteView: View {
 
     var body: some View {
         switch route {
-        case let .anime(id):
+        case let .anime(id, source):
             AnimeDetailView(malID: id, api: deps.api)
+                .zoomDestination(sourceID: source)
         case let .seasonGrid(kind):
             SeasonGridView(kind: kind, api: deps.api)
         case .seasonBrowser:

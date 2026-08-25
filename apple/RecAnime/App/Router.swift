@@ -5,7 +5,8 @@ import SwiftUI
 
 /// Navigation destinations shared by every tab.
 enum Route: Hashable {
-    case anime(Int)
+    /// `source` names the `zoomSource` the page was opened from (nil → standard push).
+    case anime(Int, source: String? = nil)
     case seasonGrid(SeasonKind)
     case seasonBrowser
     case franchise(Int)
@@ -60,12 +61,18 @@ final class Router {
         }
     }
 
-    /// Pushes the anime page onto the current tab (or a specific one).
-    func open(anime malID: Int, in destination: AppTab? = nil) {
+    /// Pushes the anime page onto the current tab (or a specific one); `source` enables the zoom transition.
+    func open(anime malID: Int, source: String? = nil, in destination: AppTab? = nil) {
         if let destination {
             tab = destination
         }
-        path(for: tab).wrappedValue.append(.anime(malID))
+        path(for: tab).wrappedValue.append(.anime(malID, source: source))
+    }
+
+    /// Same as `open`, remembering the summary so the detail page renders instantly.
+    func open(_ anime: AnimeSummary, source: String? = nil, remembering cache: SummaryCache) {
+        cache.remember(anime)
+        open(anime: anime.malId, source: source)
     }
 
     /// `recanime://anime/<id>` and `recanime://library?status=watching`.
