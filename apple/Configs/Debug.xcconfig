@@ -1,0 +1,6 @@
+#include "Base.xcconfig"
+
+RA_ENVIRONMENT = debug
+// "$()" keeps "//" from being parsed as a comment. Replace the host with your Mac's name or LAN IP.
+API_BASE_URL = http:/$()/localhost:8080
+API_BASE_URL_WATCH = http:/$()/localhost:8080

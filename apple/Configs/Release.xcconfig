@@ -1,0 +1,5 @@
+#include "Base.xcconfig"
+
+RA_ENVIRONMENT = release
+// Cloud Run URL of services/api (set after the first deploy).
+API_BASE_URL = https:/$()/recanime-api.example.run.app

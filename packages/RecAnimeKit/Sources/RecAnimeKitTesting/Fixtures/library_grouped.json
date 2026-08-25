@@ -1,0 +1,129 @@
+{
+  "data": {
+    "watching": [
+      {
+        "anime": {
+          "malId": 52991,
+          "title": "Sousou no Frieren",
+          "titleEnglish": "Frieren: Beyond Journey's End",
+          "imageUrl": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+          "imageLargeUrl": "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg",
+          "type": "TV",
+          "episodes": 28,
+          "status": "Finished Airing",
+          "airingStatus": "finished",
+          "airing": false,
+          "score": 9.26,
+          "rank": 1,
+          "popularity": 102,
+          "members": 1479110,
+          "year": 2023,
+          "season": "fall",
+          "rating": "PG-13 - Teens 13 or older",
+          "isAdult": false,
+          "library": {
+            "status": "watching",
+            "favorite": true,
+            "episodesWatched": 7,
+            "updatedAt": "2026-08-25T03:22:16.041273Z"
+          }
+        },
+        "entry": {
+          "status": "watching",
+          "favorite": true,
+          "episodesWatched": 7,
+          "createdAt": "2026-08-25T03:22:16.041273Z",
+          "updatedAt": "2026-08-25T03:22:16.041273Z"
+        },
+        "progress": {
+          "episodesTotal": 28,
+          "remaining": 21
+        }
+      }
+    ],
+    "pending": [
+      {
+        "anime": {
+          "malId": 59978,
+          "title": "Sousou no Frieren 2nd Season",
+          "titleEnglish": "Frieren: Beyond Journey's End Season 2",
+          "imageUrl": "https://cdn.myanimelist.net/images/anime/1921/154528.jpg",
+          "imageLargeUrl": "https://cdn.myanimelist.net/images/anime/1921/154528l.jpg",
+          "type": "TV",
+          "episodes": 10,
+          "status": "Finished Airing",
+          "airingStatus": "finished",
+          "airing": false,
+          "score": 8.86,
+          "rank": 31,
+          "popularity": 436,
+          "members": 576751,
+          "year": 2026,
+          "season": "winter",
+          "rating": "PG-13 - Teens 13 or older",
+          "isAdult": false,
+          "library": {
+            "status": "pending",
+            "favorite": false,
+            "episodesWatched": 0,
+            "updatedAt": "2026-08-25T03:22:16.04698Z"
+          }
+        },
+        "entry": {
+          "status": "pending",
+          "favorite": false,
+          "episodesWatched": 0,
+          "createdAt": "2026-08-25T03:22:16.04698Z",
+          "updatedAt": "2026-08-25T03:22:16.04698Z"
+        },
+        "progress": {
+          "episodesTotal": 10,
+          "remaining": 10
+        }
+      }
+    ],
+    "watched": [],
+    "favorites": [
+      {
+        "anime": {
+          "malId": 52991,
+          "title": "Sousou no Frieren",
+          "titleEnglish": "Frieren: Beyond Journey's End",
+          "imageUrl": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+          "imageLargeUrl": "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg",
+          "type": "TV",
+          "episodes": 28,
+          "status": "Finished Airing",
+          "airingStatus": "finished",
+          "airing": false,
+          "score": 9.26,
+          "rank": 1,
+          "popularity": 102,
+          "members": 1479110,
+          "year": 2023,
+          "season": "fall",
+          "rating": "PG-13 - Teens 13 or older",
+          "isAdult": false,
+          "library": {
+            "status": "watching",
+            "favorite": true,
+            "episodesWatched": 7,
+            "updatedAt": "2026-08-25T03:22:16.041273Z"
+          }
+        },
+        "entry": {
+          "status": "watching",
+          "favorite": true,
+          "episodesWatched": 7,
+          "createdAt": "2026-08-25T03:22:16.041273Z",
+          "updatedAt": "2026-08-25T03:22:16.041273Z"
+        },
+        "progress": {
+          "episodesTotal": 28,
+          "remaining": 21
+        }
+      }
+    ]
+  }
+}
+

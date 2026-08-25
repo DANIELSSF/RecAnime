@@ -1,0 +1,181 @@
+name: RecAnime
+options:
+  bundleIdPrefix: com.danielsantiago
+  deploymentTarget:
+    iOS: "26.0"
+    watchOS: "26.0"
+  developmentLanguage: es
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  xcodeVersion: "26.0"
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Configs/Debug.xcconfig
+  Release: Configs/Release.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GENERATE_INFOPLIST_FILE: NO
+
+packages:
+  RecAnimeKit:
+    path: ../packages/RecAnimeKit
+  RecAnimeUI:
+    path: ../packages/RecAnimeUI
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    exactVersion: 9.2.0
+
+targets:
+  RecAnime:
+    type: application
+    platform: iOS
+    sources:
+      - path: RecAnime
+        excludes: ["**/Info.plist"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: RecAnime/Info.plist
+      properties:
+        CFBundleDisplayName: RecAnime
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.danielsantiago.recanime.refresh]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "RecAnime se conecta a tu API local durante el desarrollo."
+        ITSAppUsesNonExemptEncryption: false
+        GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        GIDServerClientID: $(GOOGLE_WEB_CLIENT_ID)
+        RAAPIBaseURL: $(API_BASE_URL)
+        RASupabaseURL: $(SUPABASE_URL)
+        RASupabasePublishableKey: $(SUPABASE_PUBLISHABLE_KEY)
+        RAEnvironment: $(RA_ENVIRONMENT)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.danielsantiago.recanime
+            CFBundleURLSchemes: [recanime]
+          - CFBundleURLName: google
+            CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
+    entitlements:
+      path: RecAnime/RecAnime.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.danielsantiago.recanime]
+    dependencies:
+      - target: RecAnimeWatch
+      - package: RecAnimeKit
+        product: RecAnimeKit
+      - package: RecAnimeUI
+        product: RecAnimeUI
+      - package: GoogleSignIn
+        product: GoogleSignIn
+    scheme:
+      testTargets: [RecAnimeTests]
+      gatherCoverageData: true
+
+  RecAnimeWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: RecAnimeWatch
+        excludes: ["**/Info.plist"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.watchkitapp
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: RecAnimeWatch/Info.plist
+      properties:
+        CFBundleDisplayName: RecAnime
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.danielsantiago.recanime
+        WKRunsIndependentlyOfCompanionApp: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        RAAPIBaseURL: $(API_BASE_URL_WATCH)
+        RASupabaseURL: $(SUPABASE_URL)
+        RASupabasePublishableKey: $(SUPABASE_PUBLISHABLE_KEY)
+        RAEnvironment: $(RA_ENVIRONMENT)
+    entitlements:
+      path: RecAnimeWatch/RecAnimeWatch.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.danielsantiago.recanime]
+    dependencies:
+      - target: RecAnimeWatchWidgets
+      - package: RecAnimeKit
+        product: RecAnimeKit
+      - package: RecAnimeUI
+        product: RecAnimeUI
+    scheme: {}
+
+  RecAnimeWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: RecAnimeWatchWidgets
+        excludes: ["**/Info.plist"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.watchkitapp.widgets
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: YES
+    info:
+      path: RecAnimeWatchWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: RecAnime
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: RecAnimeWatchWidgets/RecAnimeWatchWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.danielsantiago.recanime]
+    dependencies:
+      - package: RecAnimeKit
+        product: RecAnimeCore
+      - package: RecAnimeUI
+        product: RecAnimeUI
+    scheme:
+      environmentVariables:
+        _XCWidgetKind: com.danielsantiago.recanime.nextEpisode
+        _XCWidgetFamily: accessoryRectangular
+
+  RecAnimeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RecAnimeTests]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.tests
+    dependencies:
+      - target: RecAnime
+      - package: RecAnimeKit
+        product: RecAnimeKitTesting

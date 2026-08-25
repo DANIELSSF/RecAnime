@@ -1,0 +1,10 @@
+// Shared build settings. Machine-specific and secret values live in the two optional includes
+// (both gitignored; copy the .example files next to them).
+#include? "Local.xcconfig"
+#include? "Secrets.xcconfig"
+
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// The Watch uses the same API host unless a configuration overrides it.
+API_BASE_URL_WATCH = $(API_BASE_URL)

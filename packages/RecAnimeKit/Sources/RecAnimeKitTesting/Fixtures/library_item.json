@@ -1,0 +1,42 @@
+{
+  "data": {
+    "anime": {
+      "malId": 52991,
+      "title": "Sousou no Frieren",
+      "titleEnglish": "Frieren: Beyond Journey's End",
+      "imageUrl": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+      "imageLargeUrl": "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg",
+      "type": "TV",
+      "episodes": 28,
+      "status": "Finished Airing",
+      "airingStatus": "finished",
+      "airing": false,
+      "score": 9.26,
+      "rank": 1,
+      "popularity": 102,
+      "members": 1479110,
+      "year": 2023,
+      "season": "fall",
+      "rating": "PG-13 - Teens 13 or older",
+      "isAdult": false,
+      "library": {
+        "status": "watching",
+        "favorite": true,
+        "episodesWatched": 7,
+        "updatedAt": "2026-08-25T03:22:16.041273Z"
+      }
+    },
+    "entry": {
+      "status": "watching",
+      "favorite": true,
+      "episodesWatched": 7,
+      "createdAt": "2026-08-25T03:22:16.041273Z",
+      "updatedAt": "2026-08-25T03:22:16.041273Z"
+    },
+    "progress": {
+      "episodesTotal": 28,
+      "remaining": 21
+    }
+  }
+}
+

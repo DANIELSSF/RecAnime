@@ -1,0 +1,14 @@
+{
+  "data": {
+    "id": "b84ead27-eb47-5996-8a08-9e37c6334260",
+    "email": "dev@example.com",
+    "displayName": "dev",
+    "avatarUrl": "",
+    "createdAt": "2026-08-25T03:22:16.028419Z",
+    "settings": {
+      "sfw": true,
+      "timezone": "UTC"
+    }
+  }
+}
+
