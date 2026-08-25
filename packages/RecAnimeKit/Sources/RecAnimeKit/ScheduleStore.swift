@@ -12,12 +12,25 @@ public final class ScheduleStore {
     public private(set) var lastError: APIError?
 
     private let api: any RecAnimeAPI
+    private var inflight: Task<Void, Never>?
 
     public init(api: any RecAnimeAPI) {
         self.api = api
     }
 
+    /// Refreshes once even if several callers ask at the same time (launch, notifications, Watch sync).
     public func refresh(includeEpisodes: Bool = false) async {
+        if let inflight {
+            await inflight.value
+            return
+        }
+        let task = Task { await self.load(includeEpisodes: includeEpisodes) }
+        inflight = task
+        await task.value
+        inflight = nil
+    }
+
+    private func load(includeEpisodes: Bool) async {
         do {
             let response = try await api.schedule(includeEpisodes: includeEpisodes)
             items = response.data.sorted { ($0.nextAiringAt ?? .distantFuture) < ($1.nextAiringAt ?? .distantFuture) }

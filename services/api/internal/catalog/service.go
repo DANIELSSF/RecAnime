@@ -119,9 +119,9 @@ func (s *Service) Top(ctx context.Context, userID string, sfw bool, p ListParams
 	if sfw && p.Rating == "rx" {
 		return Page{}, fmt.Errorf("%w: rating=rx is not available while the SFW setting is on", ErrValidation)
 	}
-	key := fmt.Sprintf("top:%s:%s:%s:sfw%s:p%d", dash(p.Type), dash(p.Filter), dash(p.Rating), b(sfw), page(p.Page))
-	q := jikan.ListQuery{Filter: p.Filter, Type: p.Type, Rating: p.Rating, SFW: sfw, Page: page(p.Page)}
-	return s.animeList(ctx, userID, key, "top", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+	key := fmt.Sprintf("top:%s:%s:%s:p%d", dash(p.Type), dash(p.Filter), dash(p.Rating), page(p.Page))
+	q := jikan.ListQuery{Filter: p.Filter, Type: p.Type, Rating: p.Rating, Page: page(p.Page)}
+	return s.animeList(ctx, userID, sfw, key, "top", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
 		return s.jikan.Top(ctx, q)
 	})
 }
@@ -131,9 +131,9 @@ func (s *Service) SeasonNow(ctx context.Context, userID string, sfw bool, p List
 	if err := validate("filter", p.Filter, animeTypes); err != nil {
 		return Page{}, err
 	}
-	key := fmt.Sprintf("season:now:%s:sfw%s:p%d", dash(p.Filter), b(sfw), page(p.Page))
-	q := jikan.ListQuery{Filter: p.Filter, SFW: sfw, Page: page(p.Page)}
-	return s.animeList(ctx, userID, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+	key := fmt.Sprintf("season:now:%s:p%d", dash(p.Filter), page(p.Page))
+	q := jikan.ListQuery{Filter: p.Filter, Page: page(p.Page)}
+	return s.animeList(ctx, userID, sfw, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
 		return s.jikan.SeasonNow(ctx, q)
 	})
 }
@@ -143,9 +143,9 @@ func (s *Service) SeasonUpcoming(ctx context.Context, userID string, sfw bool, p
 	if err := validate("filter", p.Filter, animeTypes); err != nil {
 		return Page{}, err
 	}
-	key := fmt.Sprintf("season:upcoming:%s:sfw%s:p%d", dash(p.Filter), b(sfw), page(p.Page))
-	q := jikan.ListQuery{Filter: p.Filter, SFW: sfw, Page: page(p.Page)}
-	return s.animeList(ctx, userID, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+	key := fmt.Sprintf("season:upcoming:%s:p%d", dash(p.Filter), page(p.Page))
+	q := jikan.ListQuery{Filter: p.Filter, Page: page(p.Page)}
+	return s.animeList(ctx, userID, sfw, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
 		return s.jikan.SeasonUpcoming(ctx, q)
 	})
 }
@@ -162,9 +162,9 @@ func (s *Service) Season(ctx context.Context, userID string, sfw bool, year int,
 	if err := validate("filter", p.Filter, animeTypes); err != nil {
 		return Page{}, err
 	}
-	key := fmt.Sprintf("season:%d:%s:%s:sfw%s:p%d", year, season, dash(p.Filter), b(sfw), page(p.Page))
-	q := jikan.ListQuery{Filter: p.Filter, SFW: sfw, Page: page(p.Page)}
-	return s.animeList(ctx, userID, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+	key := fmt.Sprintf("season:%d:%s:%s:p%d", year, season, dash(p.Filter), page(p.Page))
+	q := jikan.ListQuery{Filter: p.Filter, Page: page(p.Page)}
+	return s.animeList(ctx, userID, sfw, key, "season", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
 		return s.jikan.Season(ctx, year, season, q)
 	})
 }
@@ -175,9 +175,9 @@ func (s *Service) Schedules(ctx context.Context, userID string, sfw bool, day st
 	if err := validate("day", day, weekdays); err != nil {
 		return Page{}, err
 	}
-	key := fmt.Sprintf("schedules:%s:sfw%s:p%d", dash(day), b(sfw), page(pg))
-	return s.animeList(ctx, userID, key, "schedules", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
-		return s.jikan.Schedules(ctx, day, sfw, page(pg), 0)
+	key := fmt.Sprintf("schedules:%s:p%d", dash(day), page(pg))
+	return s.animeList(ctx, userID, sfw, key, "schedules", s.ttl, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+		return s.jikan.Schedules(ctx, day, false, page(pg), 0)
 	})
 }
 
@@ -191,10 +191,10 @@ func (s *Service) Search(ctx context.Context, userID string, sfw bool, p SearchP
 		validate("orderBy", p.OrderBy, searchOrderBy), validate("sort", p.Sort, sortDirs)); err != nil {
 		return Page{}, err
 	}
-	h := sha1.Sum([]byte(strings.Join([]string{q, p.Type, p.Status, p.OrderBy, p.Sort, p.Genres, p.MinScore, b(sfw)}, "|"))) //nolint:gosec
+	h := sha1.Sum([]byte(strings.Join([]string{q, p.Type, p.Status, p.OrderBy, p.Sort, p.Genres, p.MinScore}, "|"))) //nolint:gosec
 	key := fmt.Sprintf("search:%s:p%d", hex.EncodeToString(h[:]), page(p.Page))
-	jq := jikan.SearchQuery{Q: q, Type: p.Type, Status: p.Status, OrderBy: p.OrderBy, Sort: p.Sort, Genres: p.Genres, MinScore: p.MinScore, SFW: sfw, Page: page(p.Page)}
-	return s.animeList(ctx, userID, key, "search", s.searchTTL, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
+	jq := jikan.SearchQuery{Q: q, Type: p.Type, Status: p.Status, OrderBy: p.OrderBy, Sort: p.Sort, Genres: p.Genres, MinScore: p.MinScore, Page: page(p.Page)}
+	return s.animeList(ctx, userID, sfw, key, "search", s.searchTTL, func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error) {
 		return s.jikan.Search(ctx, jq)
 	})
 }
@@ -329,8 +329,9 @@ func (s *Service) LiveRecommendations(ctx context.Context, userID string, pg int
 	return out, paginationOf(res.Pagination, pg, len(out)), status, nil
 }
 
-// animeList runs the cache policy for an anime list and applies the library overlay.
-func (s *Service) animeList(ctx context.Context, userID, key, kind string, ttl time.Duration,
+// animeList runs the cache policy for an anime list, drops adult entries when the user keeps SFW on
+// (Jikan's own sfw parameter is unreliable, so the filter is applied here) and applies the library overlay.
+func (s *Service) animeList(ctx context.Context, userID string, sfw bool, key, kind string, ttl time.Duration,
 	fetch func(ctx context.Context) (*jikan.Response[[]jikan.Anime], error)) (Page, error) {
 	res, err := s.cachedPayload(ctx, key, kind, ttl, func(ctx context.Context) (json.RawMessage, *jikan.Pagination, error) {
 		r, err := fetch(ctx)
@@ -349,8 +350,12 @@ func (s *Service) animeList(ctx context.Context, userID, key, kind string, ttl t
 	ids := make([]int, 0, len(list))
 	items := make([]model.AnimeSummary, 0, len(list))
 	for _, a := range list {
+		summary := anime.SummaryFromJikan(a)
+		if sfw && summary.IsAdult {
+			continue
+		}
 		ids = append(ids, a.MalID)
-		items = append(items, anime.SummaryFromJikan(a))
+		items = append(items, summary)
 	}
 	overlay, err := s.store.LibraryEntriesFor(ctx, userID, ids)
 	if err != nil {
@@ -433,13 +438,6 @@ func dash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-func b(v bool) string {
-	if v {
-		return "1"
-	}
-	return "0"
 }
 
 func page(p int) int {

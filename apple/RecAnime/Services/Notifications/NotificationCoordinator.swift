@@ -66,7 +66,9 @@ final class NotificationCoordinator {
             lastPlannedAt = .now
             return
         }
-        await schedule.refresh()
+        if schedule.needsRefresh(maxAge: 60) {
+            await schedule.refresh()
+        }
         let plan = NotificationPlanner.plan(schedule: schedule.items, now: .now, settings: settings)
         authorized = requestPermission && !plan.isEmpty ? await scheduler.ensurePermission() : await scheduler.isAuthorized()
         guard authorized else {
