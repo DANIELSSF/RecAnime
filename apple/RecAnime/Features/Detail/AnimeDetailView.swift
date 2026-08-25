@@ -148,7 +148,15 @@ struct AnimeDetailView: View {
             }
             .padding(.top, 2)
             if !detail.genres.isEmpty {
-                Text(detail.genres.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary).padding(.top, 2)
+                WrapLayout(spacing: 6, rowSpacing: 6) {
+                    ForEach(detail.genres, id: \.self) { genre in
+                        Text(genre).font(.caption.weight(.medium)).padding(.horizontal, 10).frame(height: 24)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                .padding(.top, 4)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Géneros: \(detail.genres.joined(separator: ", "))")
             }
         }
         .padding(.horizontal, Theme.Spacing.l)
@@ -283,6 +291,7 @@ struct DetailActionCluster: View {
                     .buttonStyle(.glass)
                     .glassEffectID("favorite", in: namespace)
                     .accessibilityIdentifier("detail.favorite")
+                    .sensoryFeedback(.selection, trigger: favorite)
                     .accessibilityLabel(favorite ? "Quitar de favoritos" : "Añadir a favoritos")
                 }
                 if status == .watching {

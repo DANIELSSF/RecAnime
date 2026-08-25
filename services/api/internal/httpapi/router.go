@@ -46,6 +46,7 @@ func New(deps Deps) *Server {
 	r.Use(middleware.RequestID)
 	r.Use(requestLogger(deps.Logger))
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Compress(5, "application/json")) // list payloads shrink ~5x over cellular
 	r.Use(middleware.Timeout(25 * time.Second))
 	r.Use(maxBodyBytes(64 << 10))
 

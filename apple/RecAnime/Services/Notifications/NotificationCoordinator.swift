@@ -38,7 +38,8 @@ final class NotificationCoordinator {
         if let lastPlannedAt, Date.now.timeIntervalSince(lastPlannedAt) < maxAge {
             return
         }
-        await replan()
+        // Launch-time planning never prompts; the permission request is tied to a user action.
+        await replan(requestPermission: false)
     }
 
     /// Debounced re-plan after library edits (several taps → one refresh).

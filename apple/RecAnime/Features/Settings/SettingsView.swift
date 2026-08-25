@@ -75,7 +75,10 @@ struct SettingsView: View {
                 }
                 Section("Datos") {
                     LabeledContent("Series en tu lista", value: "\(library.items.count)")
-                    Button("Vaciar caché de imágenes") { URLCache.shared.removeAllCachedResponses() }
+                    Button("Vaciar caché de imágenes") {
+                        URLCache.shared.removeAllCachedResponses()
+                        Task { await ImageLoader.shared.clear() }
+                    }
                 }
                 Section("Acerca de") {
                     LabeledContent(

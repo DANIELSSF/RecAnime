@@ -150,8 +150,34 @@ struct PosterCarousel: View {
     let items: [AnimeSummary]
     var sourcePrefix: String = "carousel"
     let onSelect: (AnimeSummary) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            // Large type: one poster per row so titles stay readable without horizontal scrolling.
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                ForEach(items.prefix(8)) { anime in
+                    Button { onSelect(anime) } label: {
+                        HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                            PosterImage(url: anime.imageURL, width: 80, height: 120)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(anime.title).font(.headline)
+                                Text(subtitle(anime)).font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .zoomSource("\(sourcePrefix)-\(anime.malId)")
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.l)
+        } else {
+            carousel
+        }
+    }
+
+    private var carousel: some View {
         ScrollView(.horizontal) {
             LazyHStack(alignment: .top, spacing: Theme.Spacing.m) {
                 ForEach(items) { anime in

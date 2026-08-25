@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Poster artwork with a neutral placeholder; MAL images are https and cached by URLCache.
+/// Poster artwork with a neutral placeholder; cached and decoded once by `ImageLoader`.
 public struct PosterImage: View {
     public let url: URL?
     public let width: CGFloat
@@ -15,18 +15,13 @@ public struct PosterImage: View {
     }
 
     public var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-            switch phase {
-            case let .success(image):
-                image.resizable().aspectRatio(contentMode: .fill)
-            default:
-                Rectangle().fill(.quaternary)
-                    .overlay {
-                        Image(systemName: "photo")
-                            .font(.title3)
-                            .foregroundStyle(.tertiary)
-                    }
-            }
+        CachedAsyncImage(url: url) {
+            Rectangle().fill(.quaternary)
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.title3)
+                        .foregroundStyle(.tertiary)
+                }
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

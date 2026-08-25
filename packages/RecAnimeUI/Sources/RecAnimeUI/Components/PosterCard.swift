@@ -25,7 +25,7 @@ public struct PosterCard: View {
             }
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .lineLimit(2, reservesSpace: true)
+                .lineLimit(2)
                 .frame(width: width, alignment: .leading)
             if let subtitle {
                 Text(subtitle)
