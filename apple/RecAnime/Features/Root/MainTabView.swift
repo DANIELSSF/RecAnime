@@ -16,13 +16,13 @@ struct MainTabView: View {
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("Temporada", systemImage: "calendar", value: AppTab.season) {
+            Tab("Inicio", systemImage: "house", value: AppTab.season) {
                 stack(for: .season, namespace: seasonZoom) { SeasonView(api: deps.api) }
             }
             Tab("Top", systemImage: "trophy", value: AppTab.top) {
                 stack(for: .top, namespace: topZoom) { TopView(api: deps.api) }
             }
-            Tab("Recomendados", systemImage: "sparkles", value: AppTab.recommendations) {
+            Tab("Descubrir", systemImage: "sparkles", value: AppTab.recommendations) {
                 stack(for: .recommendations, namespace: recommendationsZoom) { RecommendationsView(api: deps.api) }
             }
             Tab("Mi lista", systemImage: "bookmark", value: AppTab.library) {

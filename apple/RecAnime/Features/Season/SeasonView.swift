@@ -29,7 +29,7 @@ struct SeasonView: View {
             }
             .padding(.vertical, Theme.Spacing.l)
         }
-        .navigationTitle("Temporada")
+        .navigationTitle("Inicio")
         .navigationSubtitle(currentSeasonLabel)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

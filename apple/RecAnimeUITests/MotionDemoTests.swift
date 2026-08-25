@@ -100,7 +100,7 @@ final class MotionZoomTests: XCTestCase {
     func testZoomAndMorph() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Temporada"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Inicio"].firstMatch.waitForExistence(timeout: 15))
         pause(3.0)
         let poster = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'poster-continue-'")).firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 10))

@@ -46,8 +46,8 @@ struct RecommendationsView: View {
                 }
             }
         }
-        .navigationTitle("Recomendados")
-        .navigationSubtitle(loader.meta?.stale == true ? "Comunidad de MyAnimeList · sin conexión con MAL" : "Comunidad de MyAnimeList · en vivo")
+        .navigationTitle("Descubrir")
+        .navigationSubtitle(loader.meta?.stale == true ? "Recomendaciones de MyAnimeList · sin conexión" : "Recomendaciones de MyAnimeList · en vivo")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } } }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable { await loader.loadFirst() }

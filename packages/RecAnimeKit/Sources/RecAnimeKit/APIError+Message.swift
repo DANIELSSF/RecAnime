@@ -5,7 +5,12 @@ public extension APIError {
     var userMessage: String {
         switch self {
         case .unauthorized: "Tu sesión ha caducado."
-        case .network: "Sin conexión con el servidor."
+        case .network:
+            #if DEBUG
+                "Sin conexión con el servidor. ¿Está corriendo `pnpm api:dev` en el Mac?"
+            #else
+                "Sin conexión con el servidor."
+            #endif
         case let .server(status, code, _):
             switch code {
             case "upstream_rate_limited": "MyAnimeList está limitando las peticiones. Intenta en unos segundos."

@@ -109,7 +109,7 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 
 	c := Config{
-		Host:                 get("HOST", "0.0.0.0"),
+		Host:                 getenv("HOST"), // empty = every interface, IPv4 and IPv6
 		Port:                 get("PORT", "8080"),
 		AppEnv:               get("APP_ENV", EnvDevelopment),
 		LogLevel:             get("LOG_LEVEL", "info"),
