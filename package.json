@@ -22,7 +22,7 @@
     "migrate": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api migrate up",
     "migrate:status": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api migrate status",
     "api:docker:build": "docker build -t recanime-api:local services/api",
-    "api:docker:run": "docker run --rm -p 8080:8080 --env-file .env -e DATABASE_URL=postgres://recanime:recanime@host.docker.internal:5433/recanime?sslmode=disable recanime-api:local",
+    "api:docker:run": "docker run --rm --name recanime-api -p 8080:8080 --env-file .env -e DATABASE_URL=postgres://recanime:recanime@host.docker.internal:5433/recanime?sslmode=disable recanime-api:local",
     "apple:gen": "cd apple && xcodegen generate",
     "apple:build": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnime -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build",
     "apple:test": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnime -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build test",
@@ -32,6 +32,7 @@
     "apple:fmt": "swiftformat apple packages",
     "fixtures:sync": "cp services/api/testdata/golden/*.json packages/RecAnimeKit/Sources/RecAnimeKitTesting/Fixtures/",
     "apple:lint:tokens": "sh apple/scripts/check-theme-tokens.sh",
-    "deploy:api": "sh infra/gcp/deploy.sh"
+    "deploy:api": "sh infra/gcp/deploy.sh",
+    "api:lan": "pnpm api:docker:build && pnpm api:docker:run"
   }
 }
