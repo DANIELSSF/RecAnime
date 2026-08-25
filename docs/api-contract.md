@@ -40,7 +40,7 @@ Stale-while-error: when Jikan fails (429/5xx/network) and an expired copy exists
 | `GET /v1/seasons/now`, `/upcoming`, `/{year}/{season}` | `filter=tv|movie|ova|special|ona|music`, `page` | `AnimeSummary[]` + pagination |
 | `GET /v1/top` | `filter=airing|upcoming|bypopularity|favorite`, `type`, `rating`, `page` | `AnimeSummary[]` + pagination |
 | `GET /v1/recommendations` | `page` | `Recommendation[]` + pagination (`LIVE`) |
-| `GET /v1/search` | `q` (3–100 chars), `type`, `status`, `orderBy`, `sort`, `genres`, `minScore`, `page` | `AnimeSummary[]` + pagination |
+| `GET /v1/search` | `q` (3–100 chars; optional when `genres`, `status` or `orderBy` is set — that is the Discover browse), `type`, `status`, `orderBy`, `sort`, `genres` (≤5 MAL ids, comma-separated), `minScore` (0–10), `page` | `AnimeSummary[]` + pagination |
 | `GET /v1/schedules` | `day=monday..sunday|unknown|other`, `page` | `AnimeSummary[]` + pagination |
 | `GET /v1/me/library` | none → `LibraryGroups`; `status`/`favorite` → `LibraryItem[]` | see right |
 | `GET /v1/me/library/{malId}` | — | `LibraryItem` |

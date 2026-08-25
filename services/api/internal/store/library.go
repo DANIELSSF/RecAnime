@@ -65,6 +65,39 @@ func (s *Store) UpsertLibraryEntry(ctx context.Context, userID string, malID int
 	return e, nil
 }
 
+// BatchPatch is one item of a multi-entry update.
+type BatchPatch struct {
+	MalID int
+	Patch LibraryPatch
+}
+
+// UpsertLibraryEntries applies every patch in one transaction (all or nothing).
+func (s *Store) UpsertLibraryEntries(ctx context.Context, userID string, items []BatchPatch) ([]LibraryEntry, error) {
+	out := make([]LibraryEntry, 0, len(items))
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		for _, it := range items {
+			e, err := scanEntry(tx.QueryRow(ctx, `
+				INSERT INTO recanime.library_entry (user_id, mal_id, status, favorite, episodes_watched)
+				VALUES ($1, $2, COALESCE($3, 'pending'), COALESCE($4, false), COALESCE($5, 0))
+				ON CONFLICT (user_id, mal_id) DO UPDATE SET
+					status           = COALESCE($3, recanime.library_entry.status),
+					favorite         = COALESCE($4, recanime.library_entry.favorite),
+					episodes_watched = COALESCE($5, recanime.library_entry.episodes_watched),
+					updated_at       = now()
+				RETURNING `+entryColumns, userID, it.MalID, it.Patch.Status, it.Patch.Favorite, it.Patch.EpisodesWatched))
+			if err != nil {
+				return fmt.Errorf("batch upsert %d: %w", it.MalID, err)
+			}
+			out = append(out, e)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetLibraryEntry returns one entry or ErrNotFound.
 func (s *Store) GetLibraryEntry(ctx context.Context, userID string, malID int) (LibraryEntry, error) {
 	e, err := scanEntry(s.pool.QueryRow(ctx, `SELECT `+entryColumns+` FROM recanime.library_entry

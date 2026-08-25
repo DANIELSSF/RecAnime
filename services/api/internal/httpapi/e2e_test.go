@@ -332,6 +332,42 @@ func TestLibraryFlow(t *testing.T) {
 	}
 }
 
+func TestLibraryBatch(t *testing.T) {
+	e := newEnv(t, nil)
+	r := e.do("PUT", "/v1/me/library/batch", `{"items":[{"malId":52991,"status":"watched"},{"malId":59978,"status":"watching","episodesWatched":0}]}`)
+	if r.status != 200 {
+		t.Fatalf("batch: %d %s", r.status, r.raw)
+	}
+	items, _ := r.body["data"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %s", r.raw)
+	}
+	first, _ := items[0].(map[string]any)
+	entry, _ := first["entry"].(map[string]any)
+	if entry["status"] != "watched" || entry["episodesWatched"] != float64(28) {
+		t.Fatalf("watched must fill episodes in a batch: %v", entry)
+	}
+	r = e.do("GET", "/v1/me/library", "")
+	if watched, _ := r.data()["watched"].([]any); len(watched) != 1 {
+		t.Fatalf("grouped after batch: %s", r.raw)
+	}
+	if watching, _ := r.data()["watching"].([]any); len(watching) != 1 {
+		t.Fatalf("grouped after batch: %s", r.raw)
+	}
+	// Atomic: a bad status in the second item leaves the first untouched.
+	r = e.do("PUT", "/v1/me/library/batch", `{"items":[{"malId":52991,"status":"pending"},{"malId":59978,"status":"binge"}]}`)
+	if r.status != 400 {
+		t.Fatalf("invalid batch must fail: %d", r.status)
+	}
+	r = e.do("GET", "/v1/me/library/52991", "")
+	if entry, _ := r.data()["entry"].(map[string]any); entry["status"] != "watched" {
+		t.Fatalf("failed batch must not apply partially: %v", entry)
+	}
+	if r := e.do("PUT", "/v1/me/library/batch", `{"items":[]}`); r.status != 400 {
+		t.Fatalf("empty batch: %d", r.status)
+	}
+}
+
 func TestCatalogAndLiveFeed(t *testing.T) {
 	e := newEnv(t, nil)
 	for _, path := range []string{"/v1/seasons/now", "/v1/seasons/upcoming", "/v1/seasons/2023/fall", "/v1/search?q=frieren", "/v1/schedules?day=friday", "/v1/seasons", "/v1/anime/52991/episodes"} {
@@ -346,6 +382,15 @@ func TestCatalogAndLiveFeed(t *testing.T) {
 	}
 	if r := e.do("GET", "/v1/search?q=ab", ""); r.status != 400 {
 		t.Fatalf("short query must be rejected: %d", r.status)
+	}
+	if r := e.do("GET", "/v1/search", ""); r.status != 400 {
+		t.Fatalf("browse without any filter must be rejected: %d", r.status)
+	}
+	if r := e.do("GET", "/v1/search?genres=1,x", ""); r.status != 400 {
+		t.Fatalf("bad genres must be rejected: %d", r.status)
+	}
+	if r := e.do("GET", "/v1/search?genres=1&orderBy=score&sort=desc", ""); r.status != 200 || r.header.Get("X-Cache") != "MISS" {
+		t.Fatalf("genre browse: %d %s %s", r.status, r.header.Get("X-Cache"), r.raw[:min(len(r.raw), 200)])
 	}
 	if r := e.do("GET", "/v1/seasons/2023/monsoon", ""); r.status != 400 {
 		t.Fatalf("bad season must be rejected: %d", r.status)

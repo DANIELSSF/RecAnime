@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/danielssf/recanime/services/api/internal/library"
@@ -68,6 +69,38 @@ func (s *Server) handleLibraryPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, item, nil, nil)
+}
+
+type batchBody struct {
+	Items []struct {
+		MalID           int     `json:"malId"`
+		Status          *string `json:"status"`
+		Favorite        *bool   `json:"favorite"`
+		EpisodesWatched *int    `json:"episodesWatched"`
+	} `json:"items"`
+}
+
+// handleLibraryBatch applies several library changes in one transaction.
+func (s *Server) handleLibraryBatch(w http.ResponseWriter, r *http.Request) {
+	var body batchBody
+	if err := decodeJSON(r, &body); err != nil {
+		s.writeServiceError(w, r, err)
+		return
+	}
+	items := make([]library.BatchItem, 0, len(body.Items))
+	for _, it := range body.Items {
+		if it.MalID <= 0 {
+			s.writeServiceError(w, r, fmt.Errorf("%w: malId must be a positive integer", errValidation))
+			return
+		}
+		items = append(items, library.BatchItem{MalID: it.MalID, Patch: library.Patch{Status: it.Status, Favorite: it.Favorite, EpisodesWatched: it.EpisodesWatched}})
+	}
+	result, err := s.deps.Library.Batch(r.Context(), mustPrincipal(r).UserID, items)
+	if err != nil {
+		s.writeServiceError(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, result, nil, nil)
 }
 
 type episodesBody struct {

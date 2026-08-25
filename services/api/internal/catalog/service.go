@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -182,13 +183,47 @@ func (s *Service) Schedules(ctx context.Context, userID string, sfw bool, day st
 }
 
 // Search serves /anime?q=...
+// validateGenres accepts a comma-separated list of up to 5 positive MAL genre ids.
+func validateGenres(v string) error {
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	if len(parts) > 5 {
+		return fmt.Errorf("%w: genres accepts at most 5 ids", ErrValidation)
+	}
+	for _, part := range parts {
+		if n, err := strconv.Atoi(strings.TrimSpace(part)); err != nil || n <= 0 {
+			return fmt.Errorf("%w: genres must be comma-separated positive integers", ErrValidation)
+		}
+	}
+	return nil
+}
+
+func validateMinScore(v string) error {
+	if v == "" {
+		return nil
+	}
+	if f, err := strconv.ParseFloat(v, 64); err != nil || f < 0 || f > 10 {
+		return fmt.Errorf("%w: minScore must be a number between 0 and 10", ErrValidation)
+	}
+	return nil
+}
+
 func (s *Service) Search(ctx context.Context, userID string, sfw bool, p SearchParams) (Page, error) {
 	q := strings.Join(strings.Fields(strings.ToLower(p.Q)), " ")
-	if n := len([]rune(q)); n < 3 || n > 100 {
+	// Without a query this is a browse request (Discover): Jikan lists /anime filtered by
+	// genre/status/order, so at least one filter must narrow the result.
+	if q == "" {
+		if p.Genres == "" && p.Status == "" && p.OrderBy == "" {
+			return Page{}, fmt.Errorf("%w: q (3–100 characters) or a filter (genres, status, orderBy) is required", ErrValidation)
+		}
+	} else if n := len([]rune(q)); n < 3 || n > 100 {
 		return Page{}, fmt.Errorf("%w: q must be 3–100 characters", ErrValidation)
 	}
 	if err := errors.Join(validate("type", p.Type, animeTypes), validate("status", p.Status, searchStatus),
-		validate("orderBy", p.OrderBy, searchOrderBy), validate("sort", p.Sort, sortDirs)); err != nil {
+		validate("orderBy", p.OrderBy, searchOrderBy), validate("sort", p.Sort, sortDirs),
+		validateGenres(p.Genres), validateMinScore(p.MinScore)); err != nil {
 		return Page{}, err
 	}
 	h := sha1.Sum([]byte(strings.Join([]string{q, p.Type, p.Status, p.OrderBy, p.Sort, p.Genres, p.MinScore}, "|"))) //nolint:gosec

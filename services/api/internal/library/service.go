@@ -64,6 +64,66 @@ func (s *Service) Upsert(ctx context.Context, userID string, malID int, p Patch)
 	return itemFrom(store.LibraryItem{Entry: e, Anime: row}), nil
 }
 
+// BatchItem is one change of a multi-entry update.
+type BatchItem struct {
+	MalID int
+	Patch Patch
+}
+
+// MaxBatch bounds a single batch request.
+const MaxBatch = 50
+
+// Batch applies several changes atomically (e.g. "watched up to season 4, start season 5").
+// Every anime is cached first so the FK holds and totals are known for the watched rule.
+func (s *Service) Batch(ctx context.Context, userID string, items []BatchItem) ([]model.LibraryItem, error) {
+	if len(items) == 0 || len(items) > MaxBatch {
+		return nil, fmt.Errorf("%w: between 1 and %d items", ErrValidation, MaxBatch)
+	}
+	rows := make(map[int]store.AnimeRow, len(items))
+	patches := make([]store.BatchPatch, 0, len(items))
+	seen := map[int]bool{}
+	for _, it := range items {
+		if seen[it.MalID] {
+			return nil, fmt.Errorf("%w: duplicate malId %d", ErrValidation, it.MalID)
+		}
+		seen[it.MalID] = true
+		p := it.Patch
+		if p.Status != nil {
+			switch *p.Status {
+			case model.StatusPending, model.StatusWatching, model.StatusWatched:
+			default:
+				return nil, fmt.Errorf("%w: status must be pending|watching|watched", ErrValidation)
+			}
+		}
+		if p.EpisodesWatched != nil && *p.EpisodesWatched < 0 {
+			return nil, fmt.Errorf("%w: episodesWatched must be >= 0", ErrValidation)
+		}
+		row, err := s.anime.Ensure(ctx, it.MalID)
+		if err != nil {
+			return nil, err
+		}
+		rows[it.MalID] = row
+		if p.Status != nil && *p.Status == model.StatusWatched && row.Episodes != nil && p.EpisodesWatched == nil {
+			total := *row.Episodes
+			p.EpisodesWatched = &total
+		}
+		if p.EpisodesWatched != nil {
+			clamped := clamp(*p.EpisodesWatched, row.Episodes)
+			p.EpisodesWatched = &clamped
+		}
+		patches = append(patches, store.BatchPatch{MalID: it.MalID, Patch: store.LibraryPatch{Status: p.Status, Favorite: p.Favorite, EpisodesWatched: p.EpisodesWatched}})
+	}
+	entries, err := s.store.UpsertLibraryEntries(ctx, userID, patches)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.LibraryItem, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, itemFrom(store.LibraryItem{Entry: e, Anime: rows[e.MalID]}))
+	}
+	return out, nil
+}
+
 // AdjustEpisodes sets the progress absolutely (set) or relatively (delta); exactly one must be given.
 func (s *Service) AdjustEpisodes(ctx context.Context, userID string, malID int, set *int, delta *int) (model.LibraryItem, error) {
 	if (set == nil) == (delta == nil) {

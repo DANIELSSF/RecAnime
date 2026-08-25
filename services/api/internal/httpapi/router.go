@@ -88,6 +88,7 @@ func (s *Server) mountV1(r chi.Router) {
 	r.Get("/schedules", s.handleSchedules)
 
 	r.Get("/me/library", s.handleLibraryList)
+	r.Put("/me/library/batch", s.handleLibraryBatch)
 	r.Get("/me/library/{malId}", s.handleLibraryGet)
 	r.Put("/me/library/{malId}", s.handleLibraryPut)
 	r.Post("/me/library/{malId}/episodes", s.handleLibraryEpisodes)
