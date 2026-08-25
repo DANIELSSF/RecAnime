@@ -88,6 +88,10 @@ final class Router {
             tab = .library
             libraryPath = []
             return true
+        case "explore":
+            tab = .season
+            seasonPath = [.seasonBrowser]
+            return true
         default:
             return false
         }

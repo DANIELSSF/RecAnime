@@ -48,7 +48,7 @@ struct RecommendationsView: View {
         }
         .navigationTitle("Descubrir")
         .navigationSubtitle(loader.meta?.stale == true ? "Recomendaciones de MyAnimeList · sin conexión" : "Recomendaciones de MyAnimeList · en vivo")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } } }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden) }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable { await loader.loadFirst() }
         .task {

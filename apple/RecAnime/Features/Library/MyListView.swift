@@ -113,7 +113,7 @@ struct MyListView: View {
                     Picker("Ordenar", selection: $sort) { ForEach(Sort.allCases) { Text($0.label).tag($0) } }
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }
+            ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden)
         }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable { await library.load() }

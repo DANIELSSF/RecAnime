@@ -68,7 +68,7 @@ struct TopView: View {
         .safeAreaBar(edge: .top) { chips }
         .navigationTitle("Top")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } } }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden) }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable { await loader.loadFirst() }
         .task {

@@ -35,6 +35,7 @@ struct SeasonView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 AvatarButton { showsSettings = true }
             }
+            .sharedBackgroundVisibility(.hidden)
         }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable {
