@@ -165,8 +165,9 @@ final class InlineAccessoryTests: XCTestCase {
 
     func testMinimizedTabBar() {
         let app = XCUIApplication()
+        app.launchArguments = ["-ra-open", "recanime://anime/52991"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Inicio"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["detail.favorite"].firstMatch.waitForExistence(timeout: 20))
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 3))
         app.swipeUp(); app.swipeUp()
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 6))
