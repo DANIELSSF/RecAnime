@@ -97,6 +97,8 @@ struct SettingsView: View {
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Listo") { dismiss() } } }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
             .confirmationDialog("¿Cerrar sesión en todos tus dispositivos?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Cerrar sesión", role: .destructive) {
                     Task {

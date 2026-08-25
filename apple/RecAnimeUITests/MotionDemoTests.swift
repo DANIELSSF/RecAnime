@@ -124,3 +124,35 @@ final class MotionZoomTests: XCTestCase {
         RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds))
     }
 }
+
+/// Opens the detail, the trailer sheet and the episode picker (screenshots are taken from the shell).
+final class TrailerTests: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
+        continueAfterFailure = true
+    }
+
+    func testTrailerAndEpisodePicker() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ra-open", "recanime://anime/52991"]
+        app.launch()
+        let trailer = app.buttons["detail.trailer"].firstMatch
+        XCTAssertTrue(trailer.waitForExistence(timeout: 20))
+        pause(2)
+        trailer.tap()
+        pause(7)
+        app.buttons["Listo"].firstMatch.tap()
+        pause(2)
+        let pick = app.buttons["detail.episode.pick"].firstMatch
+        if pick.waitForExistence(timeout: 5) {
+            pick.tap()
+            pause(5)
+            app.buttons["Cancelar"].firstMatch.tap()
+        }
+        pause(2)
+    }
+
+    private func pause(_ seconds: TimeInterval) {
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds))
+    }
+}

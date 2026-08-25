@@ -41,8 +41,9 @@ struct NowWatchingBar: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.body.weight(.semibold))
-                    .frame(width: 34, height: 34)
-                    .background(Theme.accentSoft, in: Circle())
+                    .frame(width: 44, height: 44)
+                    .background(Theme.accentSoft, in: Circle().inset(by: 4))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .sensoryFeedback(.increase, trigger: item.entry.episodesWatched)

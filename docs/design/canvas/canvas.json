@@ -95,7 +95,7 @@
       "x": -360,
       "y": 0,
       "w": 300,
-      "text": "Paleta RecAnime (un solo acento)\n\nAcento violeta/índigo: #6E5BFF (claro) · #8577FF (oscuro)\nAcento profundo: #4A3BD9 · #5A4BEA\nPendiente: #8E8AB5 · #9A96C4\nViendo: = acento\nVisto: #4F6BFF · #6C84FF\nFavorito: #C05BFF · #CE7BFF\nFondos y texto: colores semánticos del sistema (systemBackground, label, secondaryLabel).\nPuntuaciones en gris secundario: nunca amarillo."
+      "text": "Paleta RecAnime (un solo acento)\n\nAcento rojo: #EF3B47 (claro) · #FF4B58 (oscuro)\nAcento profundo: #B9202C · #C92935\nPendiente: #B08A8E · #BD9A9E\nViendo: = acento\nVisto (coral): #F2703C · #FF8552\nFavorito (rosa): #F0468C · #FF63A3\nFondos y texto: colores semánticos del sistema (systemBackground, label, secondaryLabel).\nPuntuaciones en gris secundario: nunca amarillo."
     },
     {
       "id": "glass",

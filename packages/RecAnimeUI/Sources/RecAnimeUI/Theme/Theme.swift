@@ -1,14 +1,14 @@
 import SwiftUI
 
 /// RecAnime design tokens. Every color in the apps comes from here (the token lint script
-/// in apple/scripts fails on hard-coded colors anywhere else). One accent hue family only.
+/// in apple/scripts fails on hard-coded colors anywhere else). One accent hue family only: red.
 public enum Theme {
-    // MARK: Accent family (violet / indigo)
+    // MARK: Accent family (red → coral → pink)
 
     /// Primary accent: tint, selected chips, progress, "Viendo".
-    public static let accent = adaptive(light: 0x6E5BFF, dark: 0x8577FF)
+    public static let accent = adaptive(light: 0xEF3B47, dark: 0xFF4B58)
     /// Deep accent for gradient ends and pressed states.
-    public static let accentDeep = adaptive(light: 0x4A3BD9, dark: 0x5A4BEA)
+    public static let accentDeep = adaptive(light: 0xB9202C, dark: 0xC92935)
     /// Soft accent fill for selected rows and badges.
     public static var accentSoft: Color {
         accent.opacity(0.14)
@@ -16,13 +16,13 @@ public enum Theme {
 
     // MARK: Status colors (same hue family, shifted)
 
-    public static let statusPending = adaptive(light: 0x8E8AB5, dark: 0x9A96C4)
+    public static let statusPending = adaptive(light: 0xB08A8E, dark: 0xBD9A9E)
     public static var statusWatching: Color {
         accent
     }
 
-    public static let statusWatched = adaptive(light: 0x4F6BFF, dark: 0x6C84FF)
-    public static let favorite = adaptive(light: 0xC05BFF, dark: 0xCE7BFF)
+    public static let statusWatched = adaptive(light: 0xF2703C, dark: 0xFF8552)
+    public static let favorite = adaptive(light: 0xF0468C, dark: 0xFF63A3)
 
     /// Color for a library status (`pending` / `watching` / `watched`).
     public static func status(_ status: String) -> Color {

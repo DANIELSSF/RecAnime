@@ -279,6 +279,9 @@ public struct AnimeDetail: Codable, Sendable, Hashable, Identifiable {
     public var airedString: String
     public var broadcast: BroadcastInfo?
     public var trailerUrl: String?
+    public var trailerEmbedUrl: String?
+    public var trailerImageUrl: String?
+    public var trailerVideoId: String?
     public var malUrl: String
     public var genres: [String]
     public var themes: [String]
@@ -300,6 +303,24 @@ public struct AnimeDetail: Codable, Sendable, Hashable, Identifiable {
 
     public var imageLargeURL: URL? {
         URL(string: imageLargeUrl.isEmpty ? imageUrl : imageLargeUrl)
+    }
+
+    public var trailerURL: URL? {
+        trailerUrl.flatMap(URL.init(string:))
+    }
+
+    public var trailerImageURL: URL? {
+        trailerImageUrl.flatMap(URL.init(string:))
+    }
+
+    /// YouTube embed URL with autoplay and inline playback parameters.
+    public var trailerEmbedURL: URL? {
+        guard let id = trailerVideoId, !id.isEmpty else { return trailerEmbedUrl.flatMap(URL.init(string:)) }
+        return URL(string: "https://www.youtube-nocookie.com/embed/\(id)?autoplay=1&playsinline=1&rel=0&modestbranding=1")
+    }
+
+    public var hasTrailer: Bool {
+        trailerEmbedURL != nil || trailerURL != nil
     }
 
     /// Card representation of this detail (for lists that reuse detail data).

@@ -67,11 +67,21 @@ type Named struct {
 	URL   string `json:"url"`
 }
 
+// TrailerImages are the YouTube thumbnail sizes.
+type TrailerImages struct {
+	ImageURL        *string `json:"image_url"`
+	SmallImageURL   *string `json:"small_image_url"`
+	MediumImageURL  *string `json:"medium_image_url"`
+	LargeImageURL   *string `json:"large_image_url"`
+	MaximumImageURL *string `json:"maximum_image_url"`
+}
+
 // Trailer holds the YouTube trailer references.
 type Trailer struct {
-	YoutubeID *string `json:"youtube_id"`
-	URL       *string `json:"url"`
-	EmbedURL  *string `json:"embed_url"`
+	YoutubeID *string       `json:"youtube_id"`
+	URL       *string       `json:"url"`
+	EmbedURL  *string       `json:"embed_url"`
+	Images    TrailerImages `json:"images"`
 }
 
 // RelationGroup groups related entries by relation kind (Sequel, Prequel, ...).

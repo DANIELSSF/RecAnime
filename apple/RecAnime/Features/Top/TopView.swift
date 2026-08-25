@@ -114,6 +114,7 @@ struct FilterChip: View {
                 Button(title, action: action).buttonStyle(.glass)
             }
         }
+        .controlSize(.large)
         .font(.subheadline.weight(.semibold))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

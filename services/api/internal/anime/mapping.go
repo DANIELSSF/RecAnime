@@ -3,6 +3,7 @@ package anime
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -148,30 +149,44 @@ func DetailFromRow(r store.AnimeRow) (model.AnimeDetail, error) {
 		return model.AnimeDetail{}, err
 	}
 	d := model.AnimeDetail{
-		AnimeSummary:  SummaryFromRow(r),
-		TitleJapanese: r.TitleJapanese,
-		Synopsis:      a.Synopsis,
-		Background:    a.Background,
-		Source:        r.Source,
-		Duration:      r.Duration,
-		ScoredBy:      r.ScoredBy,
-		Favorites:     r.Favorites,
-		AiredFrom:     r.AiredFrom,
-		AiredTo:       r.AiredTo,
-		AiredString:   a.Aired.String,
-		TrailerURL:    a.Trailer.URL,
-		MalURL:        a.URL,
-		Genres:        r.Genres,
-		Themes:        names(a.Themes),
-		Demographics:  names(a.Demographics),
-		Studios:       r.Studios,
-		Producers:     names(a.Producers),
-		Streaming:     links(a.Streaming),
-		External:      links(a.External),
-		Relations:     relationGroups(a.Relations),
+		AnimeSummary:    SummaryFromRow(r),
+		TitleJapanese:   r.TitleJapanese,
+		Synopsis:        a.Synopsis,
+		Background:      a.Background,
+		Source:          r.Source,
+		Duration:        r.Duration,
+		ScoredBy:        r.ScoredBy,
+		Favorites:       r.Favorites,
+		AiredFrom:       r.AiredFrom,
+		AiredTo:         r.AiredTo,
+		AiredString:     a.Aired.String,
+		TrailerURL:      a.Trailer.URL,
+		TrailerEmbedURL: a.Trailer.EmbedURL,
+		TrailerImageURL: firstNonNil(a.Trailer.Images.MaximumImageURL, a.Trailer.Images.LargeImageURL, a.Trailer.Images.MediumImageURL, a.Trailer.Images.ImageURL),
+		TrailerVideoID:  youtubeID(a.Trailer),
+		MalURL:          a.URL,
+		Genres:          r.Genres,
+		Themes:          names(a.Themes),
+		Demographics:    names(a.Demographics),
+		Studios:         r.Studios,
+		Producers:       names(a.Producers),
+		Streaming:       links(a.Streaming),
+		External:        links(a.External),
+		Relations:       relationGroups(a.Relations),
 	}
 	if r.BroadcastDay != nil || r.BroadcastTime != nil || r.BroadcastString != nil {
 		d.Broadcast = &model.BroadcastInfo{Day: r.BroadcastDay, Time: r.BroadcastTime, Timezone: r.BroadcastTimezone, String: r.BroadcastString}
+	}
+	// MAL often ships only the embed URL; derive the id, watch URL and thumbnail from it.
+	if id := d.TrailerVideoID; id != nil {
+		if d.TrailerURL == nil {
+			u := "https://www.youtube.com/watch?v=" + *id
+			d.TrailerURL = &u
+		}
+		if d.TrailerImageURL == nil {
+			img := "https://img.youtube.com/vi/" + *id + "/hqdefault.jpg"
+			d.TrailerImageURL = &img
+		}
 	}
 	return d, nil
 }
@@ -221,4 +236,32 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func firstNonNil(values ...*string) *string {
+	for _, v := range values {
+		if v != nil && *v != "" {
+			return v
+		}
+	}
+	return nil
+}
+
+var youtubeIDPattern = regexp.MustCompile(`(?:youtube(?:-nocookie)?\.com/(?:embed/|watch\?v=)|youtu\.be/)([A-Za-z0-9_-]{6,})`)
+
+// youtubeID returns the video id, falling back to parsing the embed/watch URLs.
+func youtubeID(t jikan.Trailer) *string {
+	if t.YoutubeID != nil && *t.YoutubeID != "" {
+		return t.YoutubeID
+	}
+	for _, u := range []*string{t.EmbedURL, t.URL} {
+		if u == nil {
+			continue
+		}
+		if m := youtubeIDPattern.FindStringSubmatch(*u); len(m) == 2 {
+			id := m[1]
+			return &id
+		}
+	}
+	return nil
 }

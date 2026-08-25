@@ -17,6 +17,8 @@ public struct SectionHeader<Trailing: View>: View {
             trailing
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.accent)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .padding(.horizontal, Theme.Spacing.l)
     }

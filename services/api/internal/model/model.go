@@ -80,28 +80,31 @@ type RelationGroup struct {
 // AnimeDetail is the full anime page.
 type AnimeDetail struct {
 	AnimeSummary
-	TitleJapanese *string         `json:"titleJapanese"`
-	Synopsis      *string         `json:"synopsis"`
-	Background    *string         `json:"background"`
-	Source        *string         `json:"source"`
-	Duration      *string         `json:"duration"`
-	ScoredBy      *int            `json:"scoredBy"`
-	Favorites     *int            `json:"favorites"`
-	AiredFrom     *time.Time      `json:"airedFrom"`
-	AiredTo       *time.Time      `json:"airedTo"`
-	AiredString   string          `json:"airedString"`
-	Broadcast     *BroadcastInfo  `json:"broadcast"`
-	TrailerURL    *string         `json:"trailerUrl"`
-	MalURL        string          `json:"malUrl"`
-	Genres        []string        `json:"genres"`
-	Themes        []string        `json:"themes"`
-	Demographics  []string        `json:"demographics"`
-	Studios       []string        `json:"studios"`
-	Producers     []string        `json:"producers"`
-	Streaming     []Link          `json:"streaming"`
-	External      []Link          `json:"external"`
-	Relations     []RelationGroup `json:"relations"`
-	Franchise     *Franchise      `json:"franchise"`
+	TitleJapanese   *string         `json:"titleJapanese"`
+	Synopsis        *string         `json:"synopsis"`
+	Background      *string         `json:"background"`
+	Source          *string         `json:"source"`
+	Duration        *string         `json:"duration"`
+	ScoredBy        *int            `json:"scoredBy"`
+	Favorites       *int            `json:"favorites"`
+	AiredFrom       *time.Time      `json:"airedFrom"`
+	AiredTo         *time.Time      `json:"airedTo"`
+	AiredString     string          `json:"airedString"`
+	Broadcast       *BroadcastInfo  `json:"broadcast"`
+	TrailerURL      *string         `json:"trailerUrl"`
+	TrailerEmbedURL *string         `json:"trailerEmbedUrl"` // YouTube embed, playable in-app
+	TrailerImageURL *string         `json:"trailerImageUrl"` // YouTube thumbnail
+	TrailerVideoID  *string         `json:"trailerVideoId"`
+	MalURL          string          `json:"malUrl"`
+	Genres          []string        `json:"genres"`
+	Themes          []string        `json:"themes"`
+	Demographics    []string        `json:"demographics"`
+	Studios         []string        `json:"studios"`
+	Producers       []string        `json:"producers"`
+	Streaming       []Link          `json:"streaming"`
+	External        []Link          `json:"external"`
+	Relations       []RelationGroup `json:"relations"`
+	Franchise       *Franchise      `json:"franchise"`
 }
 
 // FranchiseEntry is one season/movie in the prequel→sequel chain.

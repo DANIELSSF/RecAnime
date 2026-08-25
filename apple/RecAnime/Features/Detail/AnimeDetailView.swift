@@ -14,6 +14,8 @@ struct AnimeDetailView: View {
     @State private var error: APIError?
     @State private var meta: Meta?
     @State private var showsNextSeasonDialog = false
+    @State private var showsTrailer = false
+    @State private var showsEpisodePicker = false
     @State private var actionError: String?
 
     var body: some View {
@@ -69,6 +71,22 @@ struct AnimeDetailView: View {
             }
         }
         .task(id: malID) { await load() }
+        .sheet(isPresented: $showsTrailer) {
+            if let detail {
+                TrailerSheet(detail: detail)
+            }
+        }
+        .sheet(isPresented: $showsEpisodePicker) {
+            if let detail {
+                EpisodePickerSheet(
+                    title: detail.title,
+                    total: detail.episodes,
+                    selection: library.items[detail.malId]?.entry.episodesWatched ?? 0
+                ) { value in
+                    Task { _ = try? await library.setEpisodes(value, for: detail.summary) }
+                }
+            }
+        }
         .alert("No se pudo guardar", isPresented: Binding(get: { actionError != nil }, set: {
             if !$0 {
                 actionError = nil
@@ -86,8 +104,18 @@ struct AnimeDetailView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             DetailHero(imageURL: detail.imageLargeURL, fallbackURL: deps.summaries[detail.malId]?.imageURL ?? detail.imageURL)
             titleBlock(detail)
-            DetailActionCluster(detail: detail, entry: entry, onFinishedSeason: { showsNextSeasonDialog = true }, report: { actionError = $0 })
-                .padding(.horizontal, Theme.Spacing.l)
+            if detail.hasTrailer {
+                TrailerCard(detail: detail) { showsTrailer = true }
+                    .padding(.horizontal, Theme.Spacing.l)
+            }
+            DetailActionCluster(
+                detail: detail,
+                entry: entry,
+                onFinishedSeason: { showsNextSeasonDialog = true },
+                onPickEpisode: { showsEpisodePicker = true },
+                report: { actionError = $0 }
+            )
+            .padding(.horizontal, Theme.Spacing.l)
             if let franchise = detail.franchise, FranchiseNavigator.hasChain(franchise) {
                 FranchiseChainSection(malID: detail.malId, franchise: franchise)
             }
@@ -237,6 +265,7 @@ struct DetailActionCluster: View {
     let detail: AnimeDetail
     let entry: RecAnimeCore.LibraryItem?
     let onFinishedSeason: () -> Void
+    let onPickEpisode: () -> Void
     let report: (String) -> Void
     @Namespace private var namespace
 
@@ -264,7 +293,7 @@ struct DetailActionCluster: View {
                                 Text(candidate.spanish)
                                     .font(.footnote.weight(candidate == status ? .bold : .semibold))
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 36)
+                                    .frame(height: 40)
                                     .foregroundStyle(candidate == status ? .white : .secondary)
                                     .background(candidate == status ? Theme.accent : .clear, in: Capsule())
                             }
@@ -273,7 +302,7 @@ struct DetailActionCluster: View {
                             .accessibilityAddTraits(candidate == status ? .isSelected : [])
                         }
                     }
-                    .padding(4)
+                    .padding(2)
                     .frame(height: 44)
                     .glassEffect(.regular.interactive(), in: .capsule)
                     .glassEffectID("status", in: namespace)
@@ -297,20 +326,27 @@ struct DetailActionCluster: View {
                 if status == .watching {
                     HStack {
                         Button { library.increment(for: detail.summary, by: -1) } label: {
-                            Image(systemName: "minus").frame(width: 36, height: 36)
+                            Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("detail.episode.minus")
                         .disabled(watched == 0)
                         .accessibilityLabel("Un episodio menos")
                         Spacer()
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("EPISODIO").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            Text("\(watched)").font(.headline.weight(.bold)).monospacedDigit().contentTransition(.numericText())
-                            if let total = detail.episodes {
-                                Text("/ \(total)").font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                        Button(action: onPickEpisode) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text("EPISODIO").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                Text("\(watched)").font(.headline.weight(.bold)).monospacedDigit().contentTransition(.numericText())
+                                if let total = detail.episodes {
+                                    Text("/ \(total)").font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                                }
                             }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("detail.episode.pick")
+                        .accessibilityLabel("Ir a un episodio concreto")
                         Spacer()
                         Button {
                             if let total = detail.episodes, watched + 1 >= total {
@@ -319,7 +355,7 @@ struct DetailActionCluster: View {
                                 library.increment(for: detail.summary)
                             }
                         } label: {
-                            Image(systemName: "plus").frame(width: 36, height: 36).foregroundStyle(Theme.accent)
+                            Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle()).foregroundStyle(Theme.accent)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("detail.episode.plus")

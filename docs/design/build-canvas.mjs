@@ -17,7 +17,7 @@ const WATCH = { w: 416, h: 496 }; // Apple Watch 46 mm logical points
 const CSS = `
   * { box-sizing: border-box; }
   body { margin: 0; background: transparent; }
-  a { color: #8577FF; text-decoration: none; } a:hover { color: #6E5BFF; }
+  a { color: #FF4B58; text-decoration: none; } a:hover { color: #EF3B47; }
   .root {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased; position: relative; overflow: hidden;
@@ -27,8 +27,8 @@ const CSS = `
     --bg: #000000; --bg2: #1C1C1E; --bg3: #2C2C2E;
     --label: #FFFFFF; --label2: rgba(235,235,245,0.60); --label3: rgba(235,235,245,0.30);
     --sep: rgba(84,84,88,0.65); --fill: rgba(120,120,128,0.24); --fill2: rgba(120,120,128,0.16);
-    --accent: #8577FF; --accent-deep: #5A4BEA; --accent-soft: rgba(133,119,255,0.18);
-    --pending: #9A96C4; --watched: #6C84FF; --favorite: #CE7BFF;
+    --accent: #FF4B58; --accent-deep: #C92935; --accent-soft: rgba(255,75,88,0.18);
+    --pending: #BD9A9E; --watched: #FF8552; --favorite: #FF63A3;
     --glass-bg: rgba(255,255,255,0.10); --glass-border: rgba(255,255,255,0.16);
     --glass-hi: rgba(255,255,255,0.22); --glass-shadow: rgba(0,0,0,0.45);
     --glass-sel: rgba(255,255,255,0.18);
@@ -37,8 +37,8 @@ const CSS = `
     --bg: #FFFFFF; --bg2: #F2F2F7; --bg3: #E5E5EA;
     --label: #000000; --label2: rgba(60,60,67,0.60); --label3: rgba(60,60,67,0.30);
     --sep: rgba(60,60,67,0.29); --fill: rgba(120,120,128,0.20); --fill2: rgba(120,120,128,0.12);
-    --accent: #6E5BFF; --accent-deep: #4A3BD9; --accent-soft: rgba(110,91,255,0.14);
-    --pending: #8E8AB5; --watched: #4F6BFF; --favorite: #C05BFF;
+    --accent: #EF3B47; --accent-deep: #B9202C; --accent-soft: rgba(239,59,71,0.14);
+    --pending: #B08A8E; --watched: #F2703C; --favorite: #F0468C;
     --glass-bg: rgba(255,255,255,0.55); --glass-border: rgba(255,255,255,0.75);
     --glass-hi: rgba(255,255,255,0.9); --glass-shadow: rgba(0,0,0,0.14);
     --glass-sel: rgba(255,255,255,0.85);
@@ -81,11 +81,11 @@ const CSS = `
   .chip { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; font-size: 15px;
     font-weight: 600; line-height: 20px; color: var(--label); white-space: nowrap; }
   .chip.sel { background: var(--accent); border-color: transparent; color: #FFFFFF;
-    box-shadow: 0 6px 18px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
+    box-shadow: 0 6px 18px rgba(239,59,71,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
   .icon { width: 24px; height: 24px; flex: none; }
   .avatar { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center;
     justify-content: center; font-size: 14px; font-weight: 700; color: #FFFFFF;
-    background: linear-gradient(135deg, #8577FF, #4A3BD9); }
+    background: linear-gradient(135deg, #FF4B58, #B9202C); }
 `;
 
 // Poster placeholders: muted duotone fills standing in for MAL artwork (no real images).
@@ -240,9 +240,9 @@ ${body}
 // ---------------------------------------------------------------------------
 function loginScreen(theme) {
   const body = `
-  <div style="position: absolute; inset: 0; background: radial-gradient(60% 40% at 50% 18%, rgba(110,91,255,0.55), rgba(110,91,255,0) 70%);"></div>
+  <div style="position: absolute; inset: 0; background: radial-gradient(60% 40% at 50% 18%, rgba(239,59,71,0.55), rgba(239,59,71,0) 70%);"></div>
   <div class="col" style="position: absolute; inset: 0; align-items: center; justify-content: center; gap: 0; padding: 0 32px;">
-    <div class="row" style="width: 96px; height: 96px; border-radius: 26px; justify-content: center; color: #FFFFFF; background: linear-gradient(135deg, #8577FF, #4A3BD9); box-shadow: 0 18px 40px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.4);">
+    <div class="row" style="width: 96px; height: 96px; border-radius: 26px; justify-content: center; color: #FFFFFF; background: linear-gradient(135deg, #FF4B58, #B9202C); box-shadow: 0 18px 40px rgba(239,59,71,0.35), inset 0 1px 0 rgba(255,255,255,0.4);">
       <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1z"></path><path d="M9.5 9.5h5M9.5 12.5h3"></path></svg>
     </div>
     <span class="lt" style="margin-top: 28px;">RecAnime</span>
@@ -466,7 +466,7 @@ function detailScreen(theme) {
       <div class="row" style="gap: 10px;">
         <div class="glass capsule row" style="flex: 1; height: 44px; padding: 4px; gap: 2px;">
           <div class="row fn sec" style="flex: 1; height: 36px; justify-content: center; border-radius: 18px; font-weight: 600;">Pendiente</div>
-          <div class="row fn" style="flex: 1; height: 36px; justify-content: center; border-radius: 18px; font-weight: 700; background: var(--accent); color: #FFFFFF; box-shadow: 0 4px 12px rgba(110,91,255,0.4);">Viendo</div>
+          <div class="row fn" style="flex: 1; height: 36px; justify-content: center; border-radius: 18px; font-weight: 700; background: var(--accent); color: #FFFFFF; box-shadow: 0 4px 12px rgba(239,59,71,0.4);">Viendo</div>
           <div class="row fn sec" style="flex: 1; height: 36px; justify-content: center; border-radius: 18px; font-weight: 600;">Visto</div>
         </div>
         <div class="glass row" style="width: 44px; height: 44px; border-radius: 22px; justify-content: center; color: var(--favorite); flex: none;">${ICON.heartFill}</div>
@@ -558,7 +558,7 @@ function watchDetailScreen() {
       <svg viewBox="0 0 150 150" width="150" height="150">
         <circle cx="75" cy="75" r="${r}" fill="none" stroke="rgba(120,120,128,0.32)" stroke-width="12"></circle>
         <circle cx="75" cy="75" r="${r}" fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 75 75)"></circle>
-        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8577FF"></stop><stop offset="1" stop-color="#6C84FF"></stop></linearGradient></defs>
+        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4B58"></stop><stop offset="1" stop-color="#FF8552"></stop></linearGradient></defs>
       </svg>
       <div class="col" style="position: absolute; inset: 0; align-items: center; justify-content: center; gap: 0;">
         <span class="t1 mono" style="font-weight: 700;">7</span>
@@ -566,7 +566,7 @@ function watchDetailScreen() {
       </div>
     </div>
     <div class="col" style="width: 100%; gap: 8px; margin-top: 10px;">
-      <div class="glass capsule row" style="height: 50px; justify-content: center; gap: 8px; background: var(--accent); border-color: rgba(255,255,255,0.3); color: #FFFFFF; box-shadow: 0 8px 20px rgba(110,91,255,0.45), inset 0 1px 0 rgba(255,255,255,0.4);">
+      <div class="glass capsule row" style="height: 50px; justify-content: center; gap: 8px; background: var(--accent); border-color: rgba(255,255,255,0.3); color: #FFFFFF; box-shadow: 0 8px 20px rgba(239,59,71,0.45), inset 0 1px 0 rgba(255,255,255,0.4);">
         ${ICON.plus}<span class="hl">Episodio visto</span>
       </div>
       <div class="glass capsule row" style="height: 44px; justify-content: center; color: var(--label);">
@@ -587,7 +587,7 @@ function complicationsBoard() {
     const r = (size - stroke) / 2, c = 2 * Math.PI * r;
     return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position: absolute; inset: 0;">
       <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(120,120,128,0.32)" stroke-width="${stroke}"></circle>
-      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#8577FF" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"></circle></svg>`;
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#FF4B58" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"></circle></svg>`;
   };
   const body = `
   <div class="row" style="padding: 28px 32px; gap: 40px; align-items: flex-start; justify-content: center;">
@@ -647,7 +647,7 @@ artboards.push({ file: "Complicaciones.dc.html", x: wx, y: ROW2 + WATCH.h + 130,
 const canvas = {
   artboards,
   annotations: [
-    { id: "paleta", x: -360, y: 0, w: 300, text: "Paleta RecAnime (un solo acento)\n\nAcento violeta/índigo: #6E5BFF (claro) · #8577FF (oscuro)\nAcento profundo: #4A3BD9 · #5A4BEA\nPendiente: #8E8AB5 · #9A96C4\nViendo: = acento\nVisto: #4F6BFF · #6C84FF\nFavorito: #C05BFF · #CE7BFF\nFondos y texto: colores semánticos del sistema (systemBackground, label, secondaryLabel).\nPuntuaciones en gris secundario: nunca amarillo." },
+    { id: "paleta", x: -360, y: 0, w: 300, text: "Paleta RecAnime (un solo acento)\n\nAcento rojo: #EF3B47 (claro) · #FF4B58 (oscuro)\nAcento profundo: #B9202C · #C92935\nPendiente: #B08A8E · #BD9A9E\nViendo: = acento\nVisto (coral): #F2703C · #FF8552\nFavorito (rosa): #F0468C · #FF63A3\nFondos y texto: colores semánticos del sistema (systemBackground, label, secondaryLabel).\nPuntuaciones en gris secundario: nunca amarillo." },
     { id: "glass", x: -360, y: 330, w: 300, text: "Liquid Glass — dónde sí y dónde no\n\nSÍ (lo pone el sistema): tab bar flotante, pestaña Buscar separada, accesorio inferior \"Viendo ahora\" (como el mini reproductor), toolbars, sheets, botones .glass/.glassProminent.\n\nSÍ (a mano, pocos sitios): clúster de acciones del Detalle (GlassEffectContainer), chips de filtro en Top, control segmentado de Mi lista y el toast de error (no aparece en estos mockups).\n\nNO: filas, tarjetas, posters, badges, cabeceras, barras de progreso." },
     { id: "notas", x: -360, y: 620, w: 300, text: "Notas\n\n· Mockups estáticos (no prototipo clicable).\n· Sin barra de estado, indicador de inicio ni teclado dibujados: en el dispositivo los pone iOS.\n· Los posters son marcadores de posición (en la app son las imágenes de MAL).\n· En Detalle la tab bar aparece minimizada (tabBarMinimizeBehavior .onScrollDown) con el accesorio en línea.\n· Sinopsis y textos de recomendaciones llegan en inglés desde MAL; la interfaz va en español." },
   ],
