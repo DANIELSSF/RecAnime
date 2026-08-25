@@ -27,6 +27,9 @@ Monorepo: Go API (`services/api`), iOS 26 / watchOS 26 SwiftUI apps (`apple/`, `
 
 ## Quick start
 
+pnpm needs Node ≥ 22.13: run `nvm use` first (reads `.nvmrc`). Every script also exists as a `make` target
+(`make api`, `make api-test`, `make lan`…) for shells without nvm.
+
 ```sh
 nvm use
 cp .env.example .env
