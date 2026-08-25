@@ -17,23 +17,30 @@ struct NowWatchingBar: View {
                 deps.summaries.remember(item.anime)
                 router.open(anime: item.anime.malId)
             } label: {
-                HStack(spacing: Theme.Spacing.m) {
-                    if placement != .inline {
-                        PosterImage(url: item.anime.imageURL, width: 36, height: 36, cornerRadius: Theme.Radius.thumb)
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        if placement != .inline {
+                HStack(spacing: isInline ? Theme.Spacing.s : Theme.Spacing.m) {
+                    PosterImage(url: item.anime.imageURL, width: isInline ? 32 : 36, height: isInline ? 32 : 36, cornerRadius: Theme.Radius.thumb)
+                    if isInline {
+                        // Minimized tab bar: poster · (title over progress) · +
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(item.anime.title)
+                                .font(.footnote.weight(.semibold))
+                                .lineLimit(1)
+                            Text(progressText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .contentTransition(.numericText())
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 1) {
                             Text("VIENDO AHORA")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                        }
-                        HStack(spacing: 4) {
-                            Text(item.anime.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                            if placement != .inline {
-                                Text(progressText)
+                            HStack(spacing: 4) {
+                                Text(item.anime.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
+                                Text("· \(progressText)")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
@@ -48,14 +55,14 @@ struct NowWatchingBar: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("nowWatching.open")
-            .accessibilityLabel(placement == .inline ? "\(item.anime.title), \(progressText)" : item.anime.title)
+            .accessibilityLabel("\(item.anime.title), \(progressText)")
             Button {
                 library.increment(for: item.anime)
             } label: {
                 Image(systemName: "plus")
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
-                    .background(Theme.accentSoft, in: Circle().inset(by: placement == .inline ? 7 : 4))
+                    .background(Theme.accentSoft, in: Circle().inset(by: isInline ? 7 : 4))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -63,15 +70,19 @@ struct NowWatchingBar: View {
             .accessibilityIdentifier("nowWatching.increment")
             .accessibilityLabel("Marcar episodio visto")
         }
-        .padding(.leading, placement == .inline ? Theme.Spacing.s : Theme.Spacing.m)
+        .padding(.leading, isInline ? Theme.Spacing.s : Theme.Spacing.m)
         .padding(.trailing, Theme.Spacing.xs)
         .accessibilityElement(children: .contain)
     }
 
+    private var isInline: Bool {
+        placement == .inline
+    }
+
     private var progressText: String {
         if let total = item.progress.episodesTotal {
-            return "· ep \(item.entry.episodesWatched)/\(total)"
+            return "ep \(item.entry.episodesWatched)/\(total)"
         }
-        return "· ep \(item.entry.episodesWatched)"
+        return "ep \(item.entry.episodesWatched)"
     }
 }
