@@ -58,6 +58,17 @@ public final class LibraryStore {
         }
     }
 
+    /// Replaces the local state with a snapshot pushed by the iPhone (Watch, before its first fetch).
+    public func applySnapshot(_ snapshot: [LibraryItem]) {
+        var merged = items
+        for item in snapshot {
+            merged[item.anime.malId] = item
+        }
+        items = merged
+        rebuildGroups()
+        version += 1
+    }
+
     /// Seeds an item that arrived embedded in another response (e.g. the detail page).
     public func seed(_ summary: AnimeSummary) {
         guard let overlay = summary.library, items[summary.malId] == nil else { return }

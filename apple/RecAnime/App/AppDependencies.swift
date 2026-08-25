@@ -7,12 +7,17 @@ import RecAnimeKit
 @MainActor
 @Observable
 final class AppDependencies {
+    /// Single instance shared with UIKit entry points (app delegate, background tasks, notifications).
+    static let shared = AppDependencies()
+
     let config: AppConfig
     /// nil when Supabase is not configured (Secrets.xcconfig missing) — debug builds then use the dev bypass.
     let session: SessionStore?
     let api: any RecAnimeAPI
     let library: LibraryStore
     let schedule: ScheduleStore
+    let notifications: NotificationCoordinator
+    let watchSync: PhoneWatchSync
     let snapshots = SnapshotCache()
     let router = Router()
 
@@ -35,6 +40,8 @@ final class AppDependencies {
         api = LiveRecAnimeAPI(client: client)
         library = LibraryStore(api: api)
         schedule = ScheduleStore(api: api)
+        notifications = NotificationCoordinator(schedule: schedule)
+        watchSync = PhoneWatchSync(config: config, library: library, schedule: schedule, notifications: notifications)
     }
 
     static let apiOverrideKey = "ra.apiBaseURLOverride"

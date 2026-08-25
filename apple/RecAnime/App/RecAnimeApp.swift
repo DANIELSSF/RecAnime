@@ -4,7 +4,9 @@ import SwiftUI
 
 @main
 struct RecAnimeApp: App {
-    @State private var deps = AppDependencies()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var deps = AppDependencies.shared
 
     init() {
         URLCache.shared = URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
@@ -17,7 +19,18 @@ struct RecAnimeApp: App {
                 .environment(deps.router)
                 .environment(deps.library)
                 .environment(deps.schedule)
+                .environment(deps.notifications)
+                .environment(deps.watchSync)
                 .tint(Theme.accent)
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    deps.watchSync.activate()
+                    Task { await deps.notifications.replanIfStale() }
+                }
+                .onChange(of: deps.library.version) { _, _ in
+                    deps.notifications.scheduleReplan()
+                    Task { await deps.watchSync.pushSnapshot() }
+                }
                 .onOpenURL { url in
                     if !GoogleSignInCoordinator.handle(url) {
                         deps.router.handle(url)

@@ -2,11 +2,14 @@ import RecAnimeCore
 import RecAnimeKit
 import RecAnimeUI
 import SwiftUI
+import UIKit
 
 /// Account, notifications, Watch, data and about.
 struct SettingsView: View {
     @Environment(AppDependencies.self) private var deps
     @Environment(LibraryStore.self) private var library
+    @Environment(NotificationCoordinator.self) private var notifications
+    @Environment(PhoneWatchSync.self) private var watchSync
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AppDependencies.apiOverrideKey) private var apiOverride = ""
     @AppStorage("ra.notifications.enabled") private var notificationsEnabled = true
@@ -33,6 +36,42 @@ struct SettingsView: View {
                         Text("1 h después").tag(60)
                     }
                     .disabled(!notificationsEnabled)
+                    LabeledContent("Programadas", value: "\(notifications.pendingCount)")
+                    if let next = notifications.nextFire {
+                        LabeledContent(
+                            "Próxima",
+                            value: "\(next.title.replacingOccurrences(of: "Nuevo episodio: ", with: "")) · \(next.fireDate.formatted(date: .abbreviated, time: .shortened))"
+                        )
+                        .lineLimit(2)
+                    }
+                    if notificationsEnabled, !notifications.authorized, notifications.lastPlannedAt != nil {
+                        Button("Abrir ajustes del sistema") {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                    }
+                }
+                .onChange(of: notificationsEnabled) { _, _ in Task { await notifications.replan() } }
+                .onChange(of: notificationOffset) { _, _ in Task { await notifications.replan() } }
+                Section("Apple Watch") {
+                    LabeledContent("Emparejado", value: watchSync.isPaired ? "Sí" : "No")
+                    LabeledContent("App instalada", value: watchSync.isWatchAppInstalled ? "Sí" : "No")
+                    if let last = watchSync.lastSyncAt {
+                        LabeledContent("Última sincronización", value: last.formatted(date: .omitted, time: .shortened))
+                    }
+                    Button("Sincronizar ahora") {
+                        Task {
+                            if deps.session != nil {
+                                await watchSync.remintSilently()
+                            } else {
+                                await watchSync.pushSnapshot()
+                            }
+                        }
+                    }
+                    if let error = watchSync.lastError {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
                 Section("Datos") {
                     LabeledContent("Series en tu lista", value: "\(library.items.count)")
@@ -60,6 +99,8 @@ struct SettingsView: View {
                     Task {
                         await deps.session?.signOut()
                         GoogleSignInCoordinator.signOut()
+                        notifications.cancelAll()
+                        watchSync.sendSignedOut()
                         dismiss()
                     }
                 }

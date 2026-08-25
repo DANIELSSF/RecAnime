@@ -31,6 +31,12 @@ public final class ScheduleStore {
         }
     }
 
+    /// Replaces the items with a snapshot pushed by the iPhone.
+    public func replace(with snapshot: [ScheduleItem], generatedAt: Date) {
+        items = snapshot.sorted { ($0.nextAiringAt ?? .distantFuture) < ($1.nextAiringAt ?? .distantFuture) }
+        lastFetched = generatedAt
+    }
+
     /// Whether a refresh is worth doing (older than `maxAge`).
     public func needsRefresh(maxAge: TimeInterval = 15 * 60, now: Date = .now) -> Bool {
         guard let lastFetched else { return true }

@@ -90,6 +90,7 @@ struct LoginView: View {
         do {
             let tokens = try await GoogleSignInCoordinator.signIn()
             _ = try await session.signInWithGoogle(idToken: tokens.idToken, accessToken: tokens.accessToken)
+            Task { await deps.watchSync.mintSession(idToken: tokens.idToken, accessToken: tokens.accessToken) }
         } catch is CancellationError {
             // User dismissed the Google sheet.
         } catch {

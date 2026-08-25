@@ -38,6 +38,12 @@ private struct SessionGate: View {
             }
         }
         .task { session.bootstrap() }
+        .onChange(of: session.state, initial: false) { _, state in
+            if case .signedOut = state {
+                AppDependencies.shared.notifications.cancelAll()
+                AppDependencies.shared.watchSync.sendSignedOut()
+            }
+        }
         .animation(.snappy, value: session.state)
     }
 }

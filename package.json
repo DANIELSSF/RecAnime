@@ -30,6 +30,7 @@
     "apple:watch:build": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnimeWatch -destination 'platform=watchOS Simulator,name=Watch S11' build",
     "apple:runtime:watch": "xcodebuild -downloadPlatform watchOS",
     "apple:fmt": "swiftformat apple packages",
+    "fixtures:sync": "cp services/api/testdata/golden/*.json packages/RecAnimeKit/Sources/RecAnimeKitTesting/Fixtures/",
     "apple:lint:tokens": "sh apple/scripts/check-theme-tokens.sh",
     "deploy:api": "sh infra/gcp/deploy.sh"
   }

@@ -1,25 +1,56 @@
+import RecAnimeCore
+import RecAnimeKit
 import RecAnimeUI
 import SwiftUI
 
-/// "Viendo" list. Data wiring arrives with the Watch milestone; this is the visual skeleton.
+/// "Viendo" list with progress.
 struct WatchingListView: View {
-    private let sample: [(title: String, watched: Int, total: Int)] = [
-        ("Sousou no Frieren 2nd Season", 7, 24),
-        ("Jujutsu Kaisen 3rd Season", 3, 24),
-    ]
+    @Environment(WatchDependencies.self) private var deps
+    @Environment(LibraryStore.self) private var library
 
     var body: some View {
-        List(sample, id: \.title) { item in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-                HStack(spacing: 8) {
-                    ProgressView(value: Double(item.watched), total: Double(item.total))
-                        .tint(Theme.accent)
-                    Text("\(item.watched)/\(item.total)")
-                        .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+        List {
+            ForEach(library.groups.watching) { item in
+                NavigationLink(value: item.anime.malId) {
+                    HStack(spacing: 10) {
+                        PosterImage(url: item.anime.imageURL, width: 40, height: 60, cornerRadius: Theme.Radius.thumb)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.anime.title).font(.footnote.weight(.semibold)).lineLimit(2)
+                            HStack(spacing: 6) {
+                                ProgressPill(watched: item.entry.episodesWatched, total: item.progress.episodesTotal)
+                                if deps.outbox.isPending(item.anime.malId) {
+                                    Image(systemName: "clock.arrow.circlepath").font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let error = deps.lastError {
+                Text(error).font(.footnote).foregroundStyle(.secondary).listRowBackground(Color.clear)
+            } else if let last = deps.lastRefresh {
+                Text("Actualizado \(last, style: .relative)").font(.footnote).foregroundStyle(.tertiary).listRowBackground(Color.clear)
+            }
+        }
+        .overlay {
+            if library.groups.watching.isEmpty {
+                if library.isLoading {
+                    ProgressView()
+                } else {
+                    ContentUnavailableView(
+                        "Nada en Viendo",
+                        systemImage: "bookmark",
+                        description: Text("Marca una serie como Viendo desde el iPhone.")
+                    )
                 }
             }
         }
         .navigationTitle("Viendo")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Actualizar", systemImage: "arrow.clockwise") { Task { await deps.refresh(throttle: false) } }
+            }
+        }
+        .task { await deps.refresh(throttle: true) }
     }
 }
