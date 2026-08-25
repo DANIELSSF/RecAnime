@@ -294,6 +294,14 @@ public struct AnimeDetail: Codable, Sendable, Hashable, Identifiable {
         malId
     }
 
+    public var imageURL: URL? {
+        URL(string: imageUrl)
+    }
+
+    public var imageLargeURL: URL? {
+        URL(string: imageLargeUrl.isEmpty ? imageUrl : imageLargeUrl)
+    }
+
     /// Card representation of this detail (for lists that reuse detail data).
     public var summary: AnimeSummary {
         AnimeSummary(
