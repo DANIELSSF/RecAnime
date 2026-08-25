@@ -18,7 +18,9 @@ struct NowWatchingBar: View {
                 router.open(anime: item.anime.malId)
             } label: {
                 HStack(spacing: Theme.Spacing.m) {
-                    PosterImage(url: item.anime.imageURL, width: 36, height: 36, cornerRadius: Theme.Radius.thumb)
+                    if placement != .inline {
+                        PosterImage(url: item.anime.imageURL, width: 36, height: 36, cornerRadius: Theme.Radius.thumb)
+                    }
                     VStack(alignment: .leading, spacing: 1) {
                         if placement != .inline {
                             Text("VIENDO AHORA")
@@ -26,23 +28,34 @@ struct NowWatchingBar: View {
                                 .foregroundStyle(.secondary)
                         }
                         HStack(spacing: 4) {
-                            Text(item.anime.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                            Text(progressText).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                                .contentTransition(.numericText())
+                            Text(item.anime.title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            if placement != .inline {
+                                Text(progressText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                                    .contentTransition(.numericText())
+                                    .layoutPriority(1)
+                            }
                         }
                     }
                     Spacer(minLength: 0)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("nowWatching.open")
+            .accessibilityLabel(placement == .inline ? "\(item.anime.title), \(progressText)" : item.anime.title)
             Button {
                 library.increment(for: item.anime)
             } label: {
                 Image(systemName: "plus")
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
-                    .background(Theme.accentSoft, in: Circle().inset(by: 4))
+                    .background(Theme.accentSoft, in: Circle().inset(by: placement == .inline ? 7 : 4))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -50,7 +63,8 @@ struct NowWatchingBar: View {
             .accessibilityIdentifier("nowWatching.increment")
             .accessibilityLabel("Marcar episodio visto")
         }
-        .padding(.horizontal, Theme.Spacing.m)
+        .padding(.leading, placement == .inline ? Theme.Spacing.s : Theme.Spacing.m)
+        .padding(.trailing, Theme.Spacing.xs)
         .accessibilityElement(children: .contain)
     }
 

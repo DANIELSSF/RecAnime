@@ -54,6 +54,7 @@ struct SeasonBrowserView: View {
             }
         }
         .listStyle(.plain)
+        .scrollDisabled(availableYears.isEmpty)
         .overlay {
             if years.isEmpty {
                 if isLoading {

@@ -83,6 +83,7 @@ struct MyListView: View {
         .listStyle(.plain)
         .animation(.snappy, value: library.version)
         .animation(.snappy, value: segment)
+        .scrollDisabled(items.isEmpty)
         .overlay {
             if items.isEmpty {
                 if library.isLoading {

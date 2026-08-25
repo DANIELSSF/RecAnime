@@ -156,3 +156,19 @@ final class TrailerTests: XCTestCase {
         RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds))
     }
 }
+
+/// Scrolls the home so the tab bar minimizes; screenshots are taken from the shell.
+final class InlineAccessoryTests: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
+    }
+
+    func testMinimizedTabBar() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Inicio"].firstMatch.waitForExistence(timeout: 15))
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 3))
+        app.swipeUp(); app.swipeUp()
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 6))
+    }
+}

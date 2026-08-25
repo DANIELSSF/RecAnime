@@ -66,6 +66,7 @@ struct AnimeGrid: View {
                 }
             }
         }
+        .scrollDisabled(loader.items.isEmpty)
         .refreshable { await loader.loadFirst() }
     }
 }

@@ -31,6 +31,7 @@ struct RecommendationsView: View {
             .padding(.horizontal, Theme.Spacing.l)
             .padding(.vertical, Theme.Spacing.m)
         }
+        .scrollDisabled(loader.items.isEmpty)
         .overlay {
             if loader.items.isEmpty {
                 switch loader.state {

@@ -50,6 +50,7 @@ struct TopView: View {
             }
         }
         .listStyle(.plain)
+        .scrollDisabled(loader.items.isEmpty)
         .overlay {
             if loader.items.isEmpty {
                 switch loader.state {
