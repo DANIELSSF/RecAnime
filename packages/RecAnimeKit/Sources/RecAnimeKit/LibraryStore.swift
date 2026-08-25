@@ -172,6 +172,48 @@ public final class LibraryStore {
         }
     }
 
+    /// Marks every chain entry up to `index` as watched (full episode count) and, when `startNext`,
+    /// puts the following one in "watching". One atomic request; local state is applied first.
+    public func markWatched(through index: Int, in franchise: Franchise, startNext: Bool) async throws -> [LibraryItem] {
+        var batch: [LibraryBatchItem] = []
+        var changes: [(AnimeSummary, WatchStatus, Int?)] = []
+        for (position, entry) in franchise.entries.enumerated() where position <= index {
+            guard let anime = entry.anime else { continue } // unresolved stub: nothing to mark yet
+            batch.append(LibraryBatchItem(malId: anime.malId, status: .watched, episodesWatched: anime.episodes))
+            changes.append((anime, .watched, anime.episodes))
+        }
+        if startNext, index + 1 < franchise.entries.count, let next = franchise.entries[index + 1].anime,
+           items[next.malId]?.entry.status != .watched {
+            batch.append(LibraryBatchItem(malId: next.malId, status: .watching))
+            changes.append((next, .watching, nil))
+        }
+        guard !batch.isEmpty else { return [] }
+        let snapshot = items
+        for (anime, status, episodes) in changes {
+            applyLocal(anime) { entry in
+                entry.status = status
+                if let episodes {
+                    entry.episodesWatched = episodes
+                }
+            }
+        }
+        do {
+            let result = try await api.batchLibrary(batch)
+            for item in result {
+                upsertLocal(item)
+            }
+            lastError = nil
+            return result
+        } catch {
+            items = snapshot
+            rebuildGroups()
+            if let apiError = error as? APIError {
+                lastError = apiError
+            }
+            throw error
+        }
+    }
+
     // MARK: Internals
 
     private func mutate(

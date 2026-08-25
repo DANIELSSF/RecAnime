@@ -33,14 +33,22 @@ struct SeasonGridView: View {
     }
 }
 
-/// Adaptive grid backed by a PagedLoader.
-struct AnimeGrid: View {
+/// Adaptive grid backed by a PagedLoader, with an optional header above the posters.
+struct AnimeGrid<Header: View>: View {
     let loader: PagedLoader<AnimeSummary>
     let onSelect: (AnimeSummary) -> Void
+    @ViewBuilder let header: () -> Header
     @ScaledMetric(relativeTo: .subheadline) private var minWidth: CGFloat = 105
+
+    init(loader: PagedLoader<AnimeSummary>, @ViewBuilder header: @escaping () -> Header, onSelect: @escaping (AnimeSummary) -> Void) {
+        self.loader = loader
+        self.header = header
+        self.onSelect = onSelect
+    }
 
     var body: some View {
         ScrollView {
+            header()
             if loader.items.isEmpty, case let .failed(error) = loader.state {
                 EmptyStateView(
                     title: "No se pudo cargar",
@@ -87,6 +95,12 @@ private struct GridPoster: View {
                 ScoreLabel(score: anime.score)
             }
         }
+    }
+}
+
+extension AnimeGrid where Header == EmptyView {
+    init(loader: PagedLoader<AnimeSummary>, onSelect: @escaping (AnimeSummary) -> Void) {
+        self.init(loader: loader, header: { EmptyView() }, onSelect: onSelect)
     }
 }
 

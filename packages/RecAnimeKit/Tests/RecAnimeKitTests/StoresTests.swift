@@ -122,6 +122,10 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
         fatalError()
     }
 
+    func browse(_ query: BrowseQuery, page: Int) async throws -> APIResponse<[AnimeSummary]> {
+        fatalError()
+    }
+
     func schedules(day: String, page: Int) async throws -> APIResponse<[AnimeSummary]> {
         fatalError()
     }
@@ -155,6 +159,14 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
     func adjustEpisodes(_ id: Int, _ adjustment: EpisodesAdjustment) async throws -> LibraryItem {
         lock.withLock { adjustCalls.append((id, adjustment)) }
         return try item(id, nil, adjustment.episodesWatched)
+    }
+
+    func batchLibrary(_ items: [LibraryBatchItem]) async throws -> [LibraryItem] {
+        var out: [LibraryItem] = []
+        for it in items {
+            try out.append(item(it.malId, LibraryPatch(status: it.status, favorite: it.favorite, episodesWatched: it.episodesWatched), nil))
+        }
+        return out
     }
 
     func deleteLibrary(_ id: Int) async throws {
@@ -226,6 +238,52 @@ struct LibraryStoreTests {
         #expect(store.nowWatching?.anime.malId == 4)
         try await store.remove(4)
         #expect(store.nowWatching == nil)
+    }
+}
+
+@Suite("LibraryStore · franchise")
+@MainActor
+struct LibraryStoreFranchiseTests {
+    @Test("mark watched through season 2 and start season 3")
+    func markThrough() async throws {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        let entries = (1 ... 4).map { i in
+            FranchiseEntry(
+                malId: 100 + i,
+                title: "S\(i)",
+                position: i,
+                resolved: i != 4,
+                relationToPrevious: i == 1 ? nil : "Sequel",
+                anime: i == 4 ? nil : FakeAPI.sample(100 + i).anime
+            )
+        }
+        let franchise = Franchise(entries: entries, requestedIndex: 0, currentIndex: 0, nextSeason: entries[1], complete: false)
+        let result = try await store.markWatched(through: 1, in: franchise, startNext: true)
+        #expect(result.count == 3)
+        #expect(store.items[101]?.entry.status == .watched)
+        #expect(store.items[101]?.entry.episodesWatched == 12)
+        #expect(store.items[102]?.entry.status == .watched)
+        #expect(store.items[103]?.entry.status == .watching)
+        #expect(store.items[104] == nil)
+        #expect(store.nowWatching?.anime.malId == 103)
+    }
+
+    @Test("a failed batch rolls everything back")
+    func rollback() async {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        let entries = (1 ... 2).map { i in FranchiseEntry(
+            malId: 200 + i,
+            title: "S\(i)",
+            position: i,
+            resolved: true,
+            anime: FakeAPI.sample(200 + i).anime
+        ) }
+        let franchise = Franchise(entries: entries, requestedIndex: 0, currentIndex: 0, complete: true)
+        api.failNext = true
+        await #expect(throws: APIError.self) { _ = try await store.markWatched(through: 1, in: franchise, startNext: false) }
+        #expect(store.items.isEmpty)
     }
 }
 

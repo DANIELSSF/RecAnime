@@ -16,6 +16,7 @@ struct AnimeDetailView: View {
     @State private var showsNextSeasonDialog = false
     @State private var showsTrailer = false
     @State private var showsEpisodePicker = false
+    @State private var progressTarget: ProgressTarget?
     @State private var actionError: String?
 
     var body: some View {
@@ -76,6 +77,11 @@ struct AnimeDetailView: View {
                 TrailerSheet(detail: detail)
             }
         }
+        .sheet(item: $progressTarget) { target in
+            if let franchise = detail?.franchise {
+                SeasonsProgressSheet(franchise: franchise, preselected: target.index)
+            }
+        }
         .sheet(isPresented: $showsEpisodePicker) {
             if let detail {
                 EpisodePickerSheet(
@@ -117,7 +123,19 @@ struct AnimeDetailView: View {
             )
             .padding(.horizontal, Theme.Spacing.l)
             if let franchise = detail.franchise, FranchiseNavigator.hasChain(franchise) {
-                FranchiseChainSection(malID: detail.malId, franchise: franchise)
+                FranchiseChainSection(
+                    malID: detail.malId,
+                    franchise: franchise,
+                    onMarkThrough: { progressTarget = ProgressTarget(index: $0) },
+                    onQuickAction: { entry, status in
+                        guard let anime = entry.anime else { return }
+                        Task {
+                            do { _ = try await library.setStatus(status, for: anime) } catch let error as APIError {
+                                actionError = error.userMessage
+                            } catch { actionError = error.localizedDescription }
+                        }
+                    }
+                )
             }
             if let synopsis = detail.synopsis, !synopsis.isEmpty {
                 SynopsisView(text: synopsis).padding(.horizontal, Theme.Spacing.l)
@@ -220,8 +238,28 @@ struct AnimeDetailView: View {
             library.seed(response.data.summary)
         } catch let e as APIError {
             error = e
+            return
         } catch {
             self.error = .network(code: -1)
+            return
+        }
+        await upgradeFranchise()
+    }
+
+    /// The chain embedded in the detail is resolved with budget 0, so seasons the server has not
+    /// cached yet show up as stubs. Walk further (a few calls, 4 fetches each) so long franchises
+    /// list every season for the cards and "Marcar hasta…"; stops as soon as a round adds nothing.
+    private func upgradeFranchise() async {
+        var rounds = 0
+        while let current = detail?.franchise, !current.complete, rounds < 3 {
+            rounds += 1
+            guard let upgraded = try? await api.franchise(malID, budget: 4) else { return }
+            let before = current.entries.filter(\.resolved).count
+            let after = upgraded.entries.filter(\.resolved).count
+            detail?.franchise = upgraded
+            if after <= before, upgraded.entries.count <= current.entries.count {
+                return
+            }
         }
     }
 }
@@ -395,27 +433,33 @@ struct DetailActionCluster: View {
     }
 }
 
+/// Sheet target: index of the season preselected in "Marcar hasta…" (nil index = current position).
+struct ProgressTarget: Identifiable {
+    let index: Int?
+    var id: Int {
+        index ?? -1
+    }
+}
+
 /// Horizontal chain of seasons/movies with the current position highlighted.
 struct FranchiseChainSection: View {
     @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
+    @Environment(LibraryStore.self) private var library
     let malID: Int
     let franchise: Franchise
-
-    /// Opens a chain entry, seeding the detail page when the anime is cached.
-    private func open(_ entry: FranchiseEntry) {
-        guard entry.malId != malID else { return }
-        if let anime = entry.anime {
-            deps.summaries.remember(anime)
-        }
-        router.open(anime: entry.malId, source: "franchise-\(malID)-\(entry.malId)")
-    }
+    var onMarkThrough: (Int?) -> Void = { _ in }
+    var onQuickAction: (FranchiseEntry, WatchStatus) -> Void = { _, _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             SectionHeader("Temporadas") {
-                if franchise.entries.count > 6 || !franchise.sideEntries.isEmpty || !franchise.complete {
-                    NavigationLink("Ver cadena", value: Route.franchise(malID))
+                HStack(spacing: Theme.Spacing.l) {
+                    Button("Marcar hasta…") { onMarkThrough(nil) }
+                        .accessibilityIdentifier("detail.franchise.markThrough")
+                    if franchise.entries.count > 6 || !franchise.sideEntries.isEmpty || !franchise.complete {
+                        NavigationLink("Ver cadena", value: Route.franchise(malID))
+                    }
                 }
             }
             ScrollView(.horizontal) {
@@ -423,14 +467,29 @@ struct FranchiseChainSection: View {
                     ForEach(Array(franchise.entries.enumerated()), id: \.element.id) { index, entry in
                         Button {
                             if entry.malId != malID {
-                                open(entry)
+                                if let anime = entry.anime {
+                                    deps.summaries.remember(anime)
+                                }
+                                router.open(anime: entry.malId, source: "franchise-\(malID)-\(entry.malId)")
                             }
                         } label: {
-                            FranchiseCard(entry: entry, isCurrent: index == franchise.currentIndex, isNext: index == franchise.currentIndex + 1)
+                            FranchiseCard(
+                                entry: entry,
+                                status: status(of: entry),
+                                isCurrent: index == franchise.currentIndex,
+                                isNext: index == franchise.currentIndex + 1
+                            )
                         }
                         .buttonStyle(.plain)
                         .zoomSource("franchise-\(malID)-\(entry.malId)")
-                        .disabled(!entry.resolved && entry.malId == malID)
+                        .contextMenu {
+                            if entry.resolved {
+                                Button("Marcar vistas hasta aquí", systemImage: "checkmark.circle") { onMarkThrough(index) }
+                                Button("Solo esta como vista", systemImage: "checkmark") { onQuickAction(entry, .watched) }
+                                Button("Empezar aquí", systemImage: "play") { onQuickAction(entry, .watching) }
+                                Button("Pendiente", systemImage: "bookmark") { onQuickAction(entry, .pending) }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.l)
@@ -438,10 +497,16 @@ struct FranchiseChainSection: View {
             .scrollIndicators(.hidden)
         }
     }
+
+    /// Live status: the store wins over the snapshot that came with the detail response.
+    private func status(of entry: FranchiseEntry) -> WatchStatus? {
+        library.overlay(for: entry.malId)?.status ?? entry.anime?.library?.status
+    }
 }
 
 private struct FranchiseCard: View {
     let entry: FranchiseEntry
+    let status: WatchStatus?
     let isCurrent: Bool
     let isNext: Bool
 
@@ -459,7 +524,7 @@ private struct FranchiseCard: View {
                 } else if isNext {
                     chip("Siguiente", background: Color(.tertiarySystemFill), foreground: .primary)
                 }
-                if entry.anime?.library?.status == .watched {
+                if status == .watched {
                     Image(systemName: "checkmark")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.white)

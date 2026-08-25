@@ -3,7 +3,7 @@ import RecAnimeKit
 import RecAnimeUI
 import SwiftUI
 
-/// Ranked list with glass filter chips.
+/// Ranked list with glass filter chips and a type menu.
 struct TopView: View {
     enum Filter: String, CaseIterable, Identifiable {
         case score = "", airing, upcoming, bypopularity, favorite
@@ -22,10 +22,29 @@ struct TopView: View {
         }
     }
 
+    enum Kind: String, CaseIterable, Identifiable {
+        case all = "", tv, movie, ova, ona, special
+        var id: String {
+            rawValue
+        }
+
+        var title: String {
+            switch self {
+            case .all: "Todos los tipos"
+            case .tv: "TV"
+            case .movie: "Películas"
+            case .ova: "OVA"
+            case .ona: "ONA"
+            case .special: "Especiales"
+            }
+        }
+    }
+
     @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     let api: any RecAnimeAPI
     @State private var filter: Filter = .score
+    @State private var kind: Kind = .all
     @State private var loader: PagedLoader<AnimeSummary>
     @State private var showsSettings = false
 
@@ -35,53 +54,78 @@ struct TopView: View {
     }
 
     var body: some View {
-        List {
-            ForEach(Array(loader.items.enumerated()), id: \.element.id) { index, anime in
-                Button { router.open(anime, source: "top-\(anime.malId)", remembering: deps.summaries) } label: {
-                    RankedAnimeRow(rank: index + 1, anime: anime)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if loader.items.isEmpty {
+                    switch loader.state {
+                    case .loading: ProgressView().padding(.top, 80)
+                    case let .failed(error):
+                        EmptyStateView(
+                            title: "No se pudo cargar",
+                            message: LocalizedStringKey(error.userMessage),
+                            systemImage: "wifi.exclamationmark",
+                            actionTitle: "Reintentar"
+                        ) { Task { await loader.loadFirst() } }
+                            .padding(.top, 80)
+                    default: EmptyView()
+                    }
                 }
-                .buttonStyle(.plain)
-                .zoomSource("top-\(anime.malId)", cornerRadius: Theme.Radius.thumb)
-                .listRowInsets(EdgeInsets(top: 10, leading: Theme.Spacing.l, bottom: 10, trailing: Theme.Spacing.l))
-                .task { await loader.loadMoreIfNeeded(currentItem: anime) }
-            }
-            if loader.state == .loadingMore || (loader.state == .loading && !loader.items.isEmpty) {
-                ProgressView().frame(maxWidth: .infinity).listRowSeparator(.hidden)
+                ForEach(Array(loader.items.enumerated()), id: \.element.id) { index, anime in
+                    Button { router.open(anime, source: "top-\(anime.malId)", remembering: deps.summaries) } label: {
+                        RankedAnimeRow(rank: index + 1, anime: anime)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, Theme.Spacing.l)
+                    }
+                    .buttonStyle(.plain)
+                    .zoomSource("top-\(anime.malId)", cornerRadius: Theme.Radius.thumb)
+                    .task { await loader.loadMoreIfNeeded(currentItem: anime) }
+                    Divider().padding(.leading, Theme.Spacing.l + 30 + Theme.Spacing.m)
+                }
+                if loader.state == .loadingMore || (loader.state == .loading && !loader.items.isEmpty) {
+                    ProgressView().frame(maxWidth: .infinity).padding()
+                }
             }
         }
-        .listStyle(.plain)
         .scrollDisabled(loader.items.isEmpty)
-        .overlay {
-            if loader.items.isEmpty {
-                switch loader.state {
-                case .loading: ProgressView()
-                case let .failed(error):
-                    EmptyStateView(
-                        title: "No se pudo cargar",
-                        message: LocalizedStringKey(error.userMessage),
-                        systemImage: "wifi.exclamationmark",
-                        actionTitle: "Reintentar"
-                    ) { Task { await loader.loadFirst() } }
-                default: EmptyView()
-                }
-            }
-        }
+        .refreshable { await loader.loadFirst() }
         .safeAreaBar(edge: .top) { chips }
         .navigationTitle("Top")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden) }
+        .navigationSubtitle(kind == .all ? "" : kind.title)
+        .toolbar {
+            // Keep a glass toolbar item here: when the avatar (shared background hidden) is the only
+            // item, the glass chips in the safeAreaBar are laid out but rendered fully transparent.
+            ToolbarItem(placement: .topBarLeading) { kindMenu }
+            ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden)
+        }
         .sheet(isPresented: $showsSettings) { SettingsView() }
-        .refreshable { await loader.loadFirst() }
         .task {
             if loader.items.isEmpty {
                 await loader.loadFirst()
             }
         }
-        .onChange(of: filter) { _, newValue in
-            let api = api
-            let value = newValue.rawValue.isEmpty ? nil : newValue.rawValue
-            Task { await loader.replace { page in try await api.top(filter: value, type: nil, page: page) } }
+        .onChange(of: filter) { _, _ in reload() }
+        .onChange(of: kind) { _, _ in reload() }
+    }
+
+    private func reload() {
+        let api = api
+        let filter = filter.rawValue.isEmpty ? nil : filter.rawValue
+        let type = kind.rawValue.isEmpty ? nil : kind.rawValue
+        Task { await loader.replace { page in try await api.top(filter: filter, type: type, page: page) } }
+    }
+
+    private var kindMenu: some View {
+        Menu {
+            Picker("Tipo", selection: $kind) {
+                ForEach(Kind.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+        } label: {
+            Label("Tipo", systemImage: "line.3.horizontal.decrease")
         }
+        .accessibilityIdentifier("top.type")
     }
 
     private var chips: some View {

@@ -22,8 +22,8 @@ struct MainTabView: View {
             Tab("Top", systemImage: "trophy", value: AppTab.top) {
                 stack(for: .top, namespace: topZoom) { TopView(api: deps.api) }
             }
-            Tab("Descubrir", systemImage: "sparkles", value: AppTab.recommendations) {
-                stack(for: .recommendations, namespace: recommendationsZoom) { RecommendationsView(api: deps.api) }
+            Tab("Descubrir", systemImage: "safari", value: AppTab.recommendations) {
+                stack(for: .recommendations, namespace: recommendationsZoom) { DiscoverView(api: deps.api) }
             }
             Tab("Mi lista", systemImage: "bookmark", value: AppTab.library) {
                 stack(for: .library, namespace: libraryZoom) { MyListView() }

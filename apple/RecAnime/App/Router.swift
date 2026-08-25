@@ -75,7 +75,7 @@ final class Router {
         open(anime: anime.malId, source: source)
     }
 
-    /// `recanime://anime/<id>` and `recanime://library?status=watching`.
+    /// `recanime://anime/<id>`, `recanime://library`, `recanime://explore`, `recanime://top`, `recanime://discover`.
     @discardableResult
     func handle(_ url: URL) -> Bool {
         guard url.scheme == Identifiers.urlScheme else { return false }
@@ -91,6 +91,14 @@ final class Router {
         case "explore":
             tab = .season
             seasonPath = [.seasonBrowser]
+            return true
+        case "top":
+            tab = .top
+            topPath = []
+            return true
+        case "discover":
+            tab = .recommendations
+            recommendationsPath = []
             return true
         default:
             return false

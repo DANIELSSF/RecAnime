@@ -100,6 +100,19 @@ public struct Endpoint: Sendable, Hashable {
         Endpoint(path: "v1/search", query: [URLQueryItem(name: "q", value: q), Self.page(page)])
     }
 
+    /// Filter-only search used by Discover (genre chips + sort).
+    public static func browse(_ query: BrowseQuery, page: Int = 1) -> Endpoint {
+        Endpoint(path: "v1/search", query: [
+            URLQueryItem(name: "genres", value: query.genres.isEmpty ? nil : query.genres.map(String.init).joined(separator: ",")),
+            URLQueryItem(name: "orderBy", value: query.orderBy),
+            URLQueryItem(name: "sort", value: query.sort),
+            URLQueryItem(name: "status", value: query.status),
+            URLQueryItem(name: "type", value: query.type),
+            URLQueryItem(name: "minScore", value: query.minScore.map { String($0) }),
+            Self.page(page),
+        ])
+    }
+
     public static func schedules(day: String, page: Int = 1) -> Endpoint {
         Endpoint(path: "v1/schedules", query: [URLQueryItem(name: "day", value: day), Self.page(page)])
     }
@@ -129,6 +142,12 @@ public struct Endpoint: Sendable, Hashable {
 
     public static func deleteLibrary(_ id: Int) -> Endpoint {
         Endpoint(method: .delete, path: "v1/me/library/\(id)")
+    }
+
+    /// Atomic multi-entry upsert, used to mark several seasons at once.
+    public static func batchLibrary(_ items: [LibraryBatchItem]) -> Endpoint {
+        struct Body: Encodable { var items: [LibraryBatchItem] }
+        return Endpoint(method: .put, path: "v1/me/library/batch", body: json(Body(items: items)))
     }
 
     public static func schedule(includeEpisodes: Bool = false) -> Endpoint {

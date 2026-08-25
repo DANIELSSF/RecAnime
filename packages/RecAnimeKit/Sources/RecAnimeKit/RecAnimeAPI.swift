@@ -18,6 +18,7 @@ public protocol RecAnimeAPI: Sendable {
     func top(filter: String?, type: String?, page: Int) async throws -> APIResponse<[AnimeSummary]>
     func recommendations(page: Int) async throws -> APIResponse<[Recommendation]>
     func search(_ q: String, page: Int) async throws -> APIResponse<[AnimeSummary]>
+    func browse(_ query: BrowseQuery, page: Int) async throws -> APIResponse<[AnimeSummary]>
     func schedules(day: String, page: Int) async throws -> APIResponse<[AnimeSummary]>
 
     func library() async throws -> LibraryGroups
@@ -26,6 +27,7 @@ public protocol RecAnimeAPI: Sendable {
     func upsertLibrary(_ id: Int, _ patch: LibraryPatch) async throws -> LibraryItem
     func adjustEpisodes(_ id: Int, _ adjustment: EpisodesAdjustment) async throws -> LibraryItem
     func deleteLibrary(_ id: Int) async throws
+    func batchLibrary(_ items: [LibraryBatchItem]) async throws -> [LibraryItem]
     func schedule(includeEpisodes: Bool) async throws -> APIResponse<[ScheduleItem]>
 }
 
@@ -99,6 +101,10 @@ public struct LiveRecAnimeAPI: RecAnimeAPI {
         try await client.send(.search(q, page: page))
     }
 
+    public func browse(_ query: BrowseQuery, page: Int) async throws -> APIResponse<[AnimeSummary]> {
+        try await client.send(.browse(query, page: page))
+    }
+
     public func schedules(
         day: String,
         page: Int
@@ -134,6 +140,10 @@ public struct LiveRecAnimeAPI: RecAnimeAPI {
 
     public func deleteLibrary(_ id: Int) async throws {
         try await client.sendNoContent(.deleteLibrary(id))
+    }
+
+    public func batchLibrary(_ items: [LibraryBatchItem]) async throws -> [LibraryItem] {
+        try await client.send(.batchLibrary(items)).data
     }
 
     public func schedule(includeEpisodes: Bool) async throws -> APIResponse<[ScheduleItem]> {

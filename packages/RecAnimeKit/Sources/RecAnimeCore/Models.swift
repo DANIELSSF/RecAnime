@@ -224,6 +224,15 @@ public struct FranchiseEntry: Codable, Sendable, Hashable, Identifiable {
     public var id: Int {
         malId
     }
+
+    public init(malId: Int, title: String, position: Int, resolved: Bool, relationToPrevious: String? = nil, anime: AnimeSummary? = nil) {
+        self.malId = malId
+        self.title = title
+        self.position = position
+        self.resolved = resolved
+        self.relationToPrevious = relationToPrevious
+        self.anime = anime
+    }
 }
 
 public struct SideEntry: Codable, Sendable, Hashable, Identifiable {
@@ -243,6 +252,22 @@ public struct Franchise: Codable, Sendable, Hashable {
     public var nextSeason: FranchiseEntry?
     public var complete: Bool
     public var sideEntries: [SideEntry]
+
+    public init(
+        entries: [FranchiseEntry],
+        requestedIndex: Int,
+        currentIndex: Int,
+        nextSeason: FranchiseEntry? = nil,
+        complete: Bool,
+        sideEntries: [SideEntry] = []
+    ) {
+        self.entries = entries
+        self.requestedIndex = requestedIndex
+        self.currentIndex = currentIndex
+        self.nextSeason = nextSeason
+        self.complete = complete
+        self.sideEntries = sideEntries
+    }
 }
 
 /// Full anime page. The Go side embeds the summary, so its fields appear at the top level here too.
@@ -418,6 +443,21 @@ public struct LibraryPatch: Codable, Sendable, Hashable {
     public var episodesWatched: Int?
 
     public init(status: WatchStatus? = nil, favorite: Bool? = nil, episodesWatched: Int? = nil) {
+        self.status = status
+        self.favorite = favorite
+        self.episodesWatched = episodesWatched
+    }
+}
+
+/// One change of `PUT /v1/me/library/batch` (applied atomically with the others).
+public struct LibraryBatchItem: Codable, Sendable, Hashable {
+    public var malId: Int
+    public var status: WatchStatus?
+    public var favorite: Bool?
+    public var episodesWatched: Int?
+
+    public init(malId: Int, status: WatchStatus? = nil, favorite: Bool? = nil, episodesWatched: Int? = nil) {
+        self.malId = malId
         self.status = status
         self.favorite = favorite
         self.episodesWatched = episodesWatched

@@ -3,12 +3,11 @@ import RecAnimeKit
 import RecAnimeUI
 import SwiftUI
 
-/// Live community recommendation pairs from MyAnimeList.
-struct RecommendationsView: View {
+/// Live community recommendation pairs from MyAnimeList (pushed from Discover).
+struct CommunityRecommendationsView: View {
     @Environment(AppDependencies.self) private var deps
     @Environment(Router.self) private var router
     @State private var loader: PagedLoader<Recommendation>
-    @State private var showsSettings = false
 
     init(api: any RecAnimeAPI) {
         _loader = State(initialValue: PagedLoader { page in try await api.recommendations(page: page) })
@@ -47,10 +46,9 @@ struct RecommendationsView: View {
                 }
             }
         }
-        .navigationTitle("Descubrir")
+        .navigationTitle("Comunidad")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(loader.meta?.stale == true ? "Recomendaciones de MyAnimeList · sin conexión" : "Recomendaciones de MyAnimeList · en vivo")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden) }
-        .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable { await loader.loadFirst() }
         .task {
             if loader.items.isEmpty {
