@@ -17,5 +17,5 @@ struct RecAnimeApp: App {
 
 extension EnvironmentValues {
     /// Build configuration (API base URL, Supabase endpoint) resolved at launch.
-    @Entry var appConfig: AppConfig = AppConfig.load()
+    @Entry var appConfig: AppConfig = .load()
 }

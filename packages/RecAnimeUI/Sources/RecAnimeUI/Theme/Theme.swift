@@ -10,12 +10,17 @@ public enum Theme {
     /// Deep accent for gradient ends and pressed states.
     public static let accentDeep = adaptive(light: 0x4A3BD9, dark: 0x5A4BEA)
     /// Soft accent fill for selected rows and badges.
-    public static var accentSoft: Color { accent.opacity(0.14) }
+    public static var accentSoft: Color {
+        accent.opacity(0.14)
+    }
 
     // MARK: Status colors (same hue family, shifted)
 
     public static let statusPending = adaptive(light: 0x8E8AB5, dark: 0x9A96C4)
-    public static var statusWatching: Color { accent }
+    public static var statusWatching: Color {
+        accent
+    }
+
     public static let statusWatched = adaptive(light: 0x4F6BFF, dark: 0x6C84FF)
     public static let favorite = adaptive(light: 0xC05BFF, dark: 0xCE7BFF)
 
@@ -61,18 +66,18 @@ public enum Theme {
     /// Builds a color that adapts to light/dark on iOS and macOS; watchOS is always dark.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
         #if os(watchOS)
-        return Color(hex: dark)
+            return Color(hex: dark)
         #elseif canImport(UIKit)
-        return Color(UIColor { traits in
-            UIColor(Color(hex: traits.userInterfaceStyle == .dark ? dark : light))
-        })
+            return Color(UIColor { traits in
+                UIColor(Color(hex: traits.userInterfaceStyle == .dark ? dark : light))
+            })
         #elseif canImport(AppKit)
-        return Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return NSColor(Color(hex: isDark ? dark : light))
-        })
+            return Color(nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                return NSColor(Color(hex: isDark ? dark : light))
+            })
         #else
-        return Color(hex: light)
+            return Color(hex: light)
         #endif
     }
 }

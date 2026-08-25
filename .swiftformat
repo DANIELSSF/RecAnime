@@ -1,0 +1,11 @@
+--swiftversion 6.0
+--indent 4
+--maxwidth 150
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--stripunusedargs closure-only
+--self remove
+--header ignore
+--disable wrapMultilineStatementBraces, redundantReturn, unusedArguments, hoistPatternLet
+--exclude apple/RecAnime.xcodeproj, **/.build, **/DerivedData

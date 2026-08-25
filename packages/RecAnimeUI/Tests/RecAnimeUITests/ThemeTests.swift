@@ -1,6 +1,6 @@
+@testable import RecAnimeUI
 import SwiftUI
 import Testing
-@testable import RecAnimeUI
 
 @Suite("Theme tokens")
 struct ThemeTests {

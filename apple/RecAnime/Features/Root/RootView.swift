@@ -44,7 +44,7 @@ struct PlaceholderScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Theme.Spacing.l) {
-                    ForEach(0..<12, id: \.self) { index in
+                    ForEach(0 ..< 12, id: \.self) { index in
                         RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                             .fill(.quaternary)
                             .frame(height: 120)
