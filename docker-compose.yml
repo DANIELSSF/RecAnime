@@ -1,0 +1,25 @@
+# Local development database for RecAnime.
+# Host port 5433 is used on purpose: 5432 is already taken by another project's container on this machine.
+name: recanime
+
+services:
+  db:
+    image: postgres:17-alpine # matches Supabase hosted Postgres 17
+    container_name: recanime-postgres
+    environment:
+      POSTGRES_USER: recanime
+      POSTGRES_PASSWORD: recanime
+      POSTGRES_DB: recanime
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - recanime_pgdata:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recanime -d recanime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  recanime_pgdata: {}

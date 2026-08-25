@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: transparent; }
+  a { color: #8577FF; text-decoration: none; } a:hover { color: #6E5BFF; }
+  .root {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; position: relative; overflow: hidden;
+    color: var(--label); background: var(--bg);
+  }
+  .dark {
+    --bg: #000000; --bg2: #1C1C1E; --bg3: #2C2C2E;
+    --label: #FFFFFF; --label2: rgba(235,235,245,0.60); --label3: rgba(235,235,245,0.30);
+    --sep: rgba(84,84,88,0.65); --fill: rgba(120,120,128,0.24); --fill2: rgba(120,120,128,0.16);
+    --accent: #8577FF; --accent-deep: #5A4BEA; --accent-soft: rgba(133,119,255,0.18);
+    --pending: #9A96C4; --watched: #6C84FF; --favorite: #CE7BFF;
+    --glass-bg: rgba(255,255,255,0.10); --glass-border: rgba(255,255,255,0.16);
+    --glass-hi: rgba(255,255,255,0.22); --glass-shadow: rgba(0,0,0,0.45);
+    --glass-sel: rgba(255,255,255,0.18);
+  }
+  .light {
+    --bg: #FFFFFF; --bg2: #F2F2F7; --bg3: #E5E5EA;
+    --label: #000000; --label2: rgba(60,60,67,0.60); --label3: rgba(60,60,67,0.30);
+    --sep: rgba(60,60,67,0.29); --fill: rgba(120,120,128,0.20); --fill2: rgba(120,120,128,0.12);
+    --accent: #6E5BFF; --accent-deep: #4A3BD9; --accent-soft: rgba(110,91,255,0.14);
+    --pending: #8E8AB5; --watched: #4F6BFF; --favorite: #C05BFF;
+    --glass-bg: rgba(255,255,255,0.55); --glass-border: rgba(255,255,255,0.75);
+    --glass-hi: rgba(255,255,255,0.9); --glass-shadow: rgba(0,0,0,0.14);
+    --glass-sel: rgba(255,255,255,0.85);
+  }
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 30px var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  }
+  .capsule { border-radius: 999px; }
+  .lt { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.37px; }
+  .t1 { font-size: 28px; line-height: 34px; font-weight: 700; }
+  .t2 { font-size: 22px; line-height: 28px; font-weight: 700; }
+  .t3 { font-size: 20px; line-height: 25px; font-weight: 600; }
+  .hl { font-size: 17px; line-height: 22px; font-weight: 600; }
+  .body { font-size: 17px; line-height: 22px; }
+  .sub { font-size: 15px; line-height: 20px; }
+  .fn { font-size: 13px; line-height: 18px; }
+  .c1 { font-size: 12px; line-height: 16px; }
+  .c2 { font-size: 11px; line-height: 13px; }
+  .sec { color: var(--label2); }
+  .ter { color: var(--label3); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .row { display: flex; align-items: center; }
+  .col { display: flex; flex-direction: column; }
+  .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .poster { border-radius: 12px; position: relative; overflow: hidden; flex: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .poster::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 20% 0%, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%),
+                linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.35) 100%); }
+  .hair { height: 0.5px; background: var(--sep); }
+  .progress { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
+  .progress > div { height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--watched)); }
+  .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; line-height: 13px; }
+  .chip { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; font-size: 15px;
+    font-weight: 600; line-height: 20px; color: var(--label); white-space: nowrap; }
+  .chip.sel { background: var(--accent); border-color: transparent; color: #FFFFFF;
+    box-shadow: 0 6px 18px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .icon { width: 24px; height: 24px; flex: none; }
+  .avatar { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700; color: #FFFFFF;
+    background: linear-gradient(135deg, #8577FF, #4A3BD9); }
+</style>
+</helmet>
+<div class="root dark" style="width: 402px; height: 874px;">
+
+  <div style="position: absolute; inset: 0; background: radial-gradient(60% 40% at 50% 18%, rgba(110,91,255,0.55), rgba(110,91,255,0) 70%);"></div>
+  <div class="col" style="position: absolute; inset: 0; align-items: center; justify-content: center; gap: 0; padding: 0 32px;">
+    <div class="row" style="width: 96px; height: 96px; border-radius: 26px; justify-content: center; color: #FFFFFF; background: linear-gradient(135deg, #8577FF, #4A3BD9); box-shadow: 0 18px 40px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.4);">
+      <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1z"></path><path d="M9.5 9.5h5M9.5 12.5h3"></path></svg>
+    </div>
+    <span class="lt" style="margin-top: 28px;">RecAnime</span>
+    <span class="body sec" style="margin-top: 8px; text-align: center; text-wrap: pretty;">Tu seguimiento de anime, en el bolsillo y en la muñeca.</span>
+  </div>
+  <div class="col" style="position: absolute; left: 24px; right: 24px; bottom: 64px; gap: 16px; align-items: center;">
+    <div class="glass capsule row" style="width: 100%; height: 54px; justify-content: center; gap: 10px; background: rgba(255,255,255,0.92); color: #000000; border-color: rgba(255,255,255,0.95);">
+      <svg class="icon" viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.7h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.23c1.89-1.74 2.99-4.3 2.99-7.26z"></path><path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.61-2.42l-3.23-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.75-5.59-4.11H3.08v2.58A10 10 0 0 0 12 22z"></path><path fill="#FBBC05" d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.5H3.08A10 10 0 0 0 2 12c0 1.61.39 3.14 1.08 4.5l3.33-2.58z"></path><path fill="#EA4335" d="M12 5.97c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.6 9.6 0 0 0 12 2 10 10 0 0 0 3.08 7.5l3.33 2.58C7.2 7.72 9.4 5.97 12 5.97z"></path></svg><span class="hl">Continuar con Google</span>
+    </div>
+    <span class="c1 ter" style="text-align: center; text-wrap: pretty;">Solo para las dos cuentas autorizadas. Los datos de anime provienen de MyAnimeList vía Jikan.</span>
+  </div>
+  
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: transparent; }
+  a { color: #8577FF; text-decoration: none; } a:hover { color: #6E5BFF; }
+  .root {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; position: relative; overflow: hidden;
+    color: var(--label); background: var(--bg);
+  }
+  .dark {
+    --bg: #000000; --bg2: #1C1C1E; --bg3: #2C2C2E;
+    --label: #FFFFFF; --label2: rgba(235,235,245,0.60); --label3: rgba(235,235,245,0.30);
+    --sep: rgba(84,84,88,0.65); --fill: rgba(120,120,128,0.24); --fill2: rgba(120,120,128,0.16);
+    --accent: #8577FF; --accent-deep: #5A4BEA; --accent-soft: rgba(133,119,255,0.18);
+    --pending: #9A96C4; --watched: #6C84FF; --favorite: #CE7BFF;
+    --glass-bg: rgba(255,255,255,0.10); --glass-border: rgba(255,255,255,0.16);
+    --glass-hi: rgba(255,255,255,0.22); --glass-shadow: rgba(0,0,0,0.45);
+    --glass-sel: rgba(255,255,255,0.18);
+  }
+  .light {
+    --bg: #FFFFFF; --bg2: #F2F2F7; --bg3: #E5E5EA;
+    --label: #000000; --label2: rgba(60,60,67,0.60); --label3: rgba(60,60,67,0.30);
+    --sep: rgba(60,60,67,0.29); --fill: rgba(120,120,128,0.20); --fill2: rgba(120,120,128,0.12);
+    --accent: #6E5BFF; --accent-deep: #4A3BD9; --accent-soft: rgba(110,91,255,0.14);
+    --pending: #8E8AB5; --watched: #4F6BFF; --favorite: #C05BFF;
+    --glass-bg: rgba(255,255,255,0.55); --glass-border: rgba(255,255,255,0.75);
+    --glass-hi: rgba(255,255,255,0.9); --glass-shadow: rgba(0,0,0,0.14);
+    --glass-sel: rgba(255,255,255,0.85);
+  }
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 30px var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  }
+  .capsule { border-radius: 999px; }
+  .lt { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.37px; }
+  .t1 { font-size: 28px; line-height: 34px; font-weight: 700; }
+  .t2 { font-size: 22px; line-height: 28px; font-weight: 700; }
+  .t3 { font-size: 20px; line-height: 25px; font-weight: 600; }
+  .hl { font-size: 17px; line-height: 22px; font-weight: 600; }
+  .body { font-size: 17px; line-height: 22px; }
+  .sub { font-size: 15px; line-height: 20px; }
+  .fn { font-size: 13px; line-height: 18px; }
+  .c1 { font-size: 12px; line-height: 16px; }
+  .c2 { font-size: 11px; line-height: 13px; }
+  .sec { color: var(--label2); }
+  .ter { color: var(--label3); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .row { display: flex; align-items: center; }
+  .col { display: flex; flex-direction: column; }
+  .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .poster { border-radius: 12px; position: relative; overflow: hidden; flex: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .poster::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 20% 0%, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%),
+                linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.35) 100%); }
+  .hair { height: 0.5px; background: var(--sep); }
+  .progress { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
+  .progress > div { height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--watched)); }
+  .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; line-height: 13px; }
+  .chip { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; font-size: 15px;
+    font-weight: 600; line-height: 20px; color: var(--label); white-space: nowrap; }
+  .chip.sel { background: var(--accent); border-color: transparent; color: #FFFFFF;
+    box-shadow: 0 6px 18px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .icon { width: 24px; height: 24px; flex: none; }
+  .avatar { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700; color: #FFFFFF;
+    background: linear-gradient(135deg, #8577FF, #4A3BD9); }
+</style>
+</helmet>
+<div class="root light" style="width: 402px; height: 874px;">
+
+  
+  <div class="row" style="padding: 62px 16px 0 16px; justify-content: space-between; align-items: flex-end;">
+    <div class="col" style="gap: 2px;">
+      <span class="lt">Temporada</span>
+      <span class="sub sec" style="font-weight: 500;">Verano 2026</span>
+    </div>
+    <div class="avatar" style="margin-bottom: 8px;">D</div>
+  </div>
+  <div class="col" style="gap: 24px; padding-top: 22px;">
+    <div class="col" style="gap: 12px;">
+      
+  <div class="row" style="padding: 0 16px; justify-content: space-between; align-items: baseline;">
+    <span class="t2">Sigue viendo</span>
+    
+  </div>
+      <div class="row" style="gap: 12px; padding: 0 16px; align-items: flex-start;"><div class="col" style="width: 110px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 110px; height: 165px; border-radius: 12px; background: linear-gradient(160deg, #8FA0F0 0%, #3A4C9A 60%, #1F2A5E 100%);"></div>
+      <div class="progress"><div style="width: 29%;"></div></div>
+      <span class="fn clamp2" style="font-weight: 600;">Sousou no Frieren 2nd Season</span>
+      <span class="c1 sec mono" style="margin-top: -6px;">ep 7/24</span>
+    </div><div class="col" style="width: 110px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 110px; height: 165px; border-radius: 12px; background: linear-gradient(160deg, #E8A24B 0%, #9B4B2A 60%, #4B2417 100%);"></div>
+      <div class="progress"><div style="width: 62%;"></div></div>
+      <span class="fn clamp2" style="font-weight: 600;">One Piece</span>
+      <span class="c1 sec mono" style="margin-top: -6px;">ep 1122</span>
+    </div><div class="col" style="width: 110px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 110px; height: 165px; border-radius: 12px; background: linear-gradient(160deg, #3E4A8F 0%, #1D2352 60%, #0E1130 100%);"></div>
+      <div class="progress"><div style="width: 13%;"></div></div>
+      <span class="fn clamp2" style="font-weight: 600;">Jujutsu Kaisen 3rd Season</span>
+      <span class="c1 sec mono" style="margin-top: -6px;">ep 3/24</span>
+    </div></div>
+    </div>
+    <div class="col" style="gap: 12px;">
+      
+  <div class="row" style="padding: 0 16px; justify-content: space-between; align-items: baseline;">
+    <span class="t2">Esta temporada</span>
+    <span class="sub" style="color: var(--accent); font-weight: 500;">Ver todo</span>
+  </div>
+      <div class="row" style="gap: 12px; padding: 0 16px; align-items: flex-start;"><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #D65C8B 0%, #6B2A66 60%, #2E1240 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Dandadan 3rd Season</span>
+      <span class="fn sec" style="margin-top: -6px;">TV · 12 ep</span>
+    </div><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #6FB1B8 0%, #2C5D6B 60%, #12303A 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Kaijuu 8-gou Season 3</span>
+      <span class="fn sec" style="margin-top: -6px;">TV · 12 ep</span>
+    </div><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #C46BD8 0%, #5F2E8F 60%, #2A1447 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Oshi no Ko 4th Season</span>
+      <span class="fn sec" style="margin-top: -6px;">TV · 13 ep</span>
+    </div></div>
+    </div>
+    <div class="col" style="gap: 12px;">
+      
+  <div class="row" style="padding: 0 16px; justify-content: space-between; align-items: baseline;">
+    <span class="t2">Próximamente</span>
+    <span class="sub" style="color: var(--accent); font-weight: 500;">Ver todo</span>
+  </div>
+      <div class="row" style="gap: 12px; padding: 0 16px; align-items: flex-start;"><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #B8B5C9 0%, #5A5872 60%, #2B2A3A 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Spy x Family Season 4</span>
+      <span class="fn sec" style="margin-top: -6px;">Otoño 2026</span>
+    </div><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #D9573F 0%, #6E2A22 60%, #2E1210 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Chainsaw Man Part 2</span>
+      <span class="fn sec" style="margin-top: -6px;">Otoño 2026</span>
+    </div><div class="col" style="width: 140px; gap: 8px; flex: none;">
+      <div class="poster" style="width: 140px; height: 210px; border-radius: 12px; background: linear-gradient(160deg, #7C9AA8 0%, #354B57 60%, #17262E 100%);"></div>
+      <span class="sub clamp2" style="font-weight: 600;">Vinland Saga Season 3</span>
+      <span class="fn sec" style="margin-top: -6px;">2027</span>
+    </div></div>
+    </div>
+  </div>
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 240px; background: linear-gradient(180deg, rgba(0,0,0,0), var(--bg) 70%); pointer-events: none; opacity: 0.9;"></div>
+  
+  <div class="glass capsule row" style="position: absolute; left: 12px; right: 12px; bottom: 118px; height: 58px; padding: 0 12px 0 10px; gap: 10px;">
+    <div class="poster" style="width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(160deg, #8FA0F0 0%, #3A4C9A 60%, #1F2A5E 100%);"></div>
+    <div class="col" style="flex: 1; min-width: 0; gap: 1px;">
+      <span class="c2 sec" style="font-weight: 600; letter-spacing: 0.3px;">VIENDO AHORA</span>
+      <span class="sub" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Frieren 2nd Season <span class="sec mono">· ep 7/24</span></span>
+    </div>
+    <div class="row" style="width: 34px; height: 34px; border-radius: 17px; justify-content: center; color: var(--accent); background: var(--accent-soft);"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 5v14M5 12h14"></path></svg></div></div>
+  
+  <div class="row" style="position: absolute; left: 12px; right: 12px; bottom: 44px; gap: 10px; align-items: flex-end;">
+    <div class="glass capsule row" style="flex: 1; height: 64px; padding: 6px 8px; justify-content: space-between;"><div class="col" style="align-items: center; justify-content: center; gap: 3px; width: 72px; height: 52px; border-radius: 26px; background: var(--glass-sel); color: var(--accent);">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><rect x="3.5" y="5" width="17" height="15" rx="3"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg><span class="c2" style="font-weight: 600;">Temporada</span></div><div class="col" style="align-items: center; justify-content: center; gap: 3px; width: 72px; height: 52px; border-radius: 26px;  color: var(--label2);">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"></path><path d="M8 6H5.5a2.5 2.5 0 0 0 0 5H8M16 6h2.5a2.5 2.5 0 0 1 0 5H16"></path><path d="M12 13v4M8.5 20h7M10 17h4"></path></svg><span class="c2" style="font-weight: 600;">Top</span></div><div class="col" style="align-items: center; justify-content: center; gap: 3px; width: 72px; height: 52px; border-radius: 26px;  color: var(--label2);">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"></path><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"></path></svg><span class="c2" style="font-weight: 600;">Recomendados</span></div><div class="col" style="align-items: center; justify-content: center; gap: 3px; width: 72px; height: 52px; border-radius: 26px;  color: var(--label2);">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1z"></path></svg><span class="c2" style="font-weight: 600;">Mi lista</span></div></div>
+    <div class="glass row" style="width: 64px; height: 64px; border-radius: 32px; justify-content: center; color: var(--label);"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg></div>
+  </div>
+  
+</div>
+</x-dc>
+</body>
+</html>

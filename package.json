@@ -1,0 +1,36 @@
+{
+  "name": "recanime",
+  "private": true,
+  "description": "RecAnime monorepo task runner (Go API + Swift apps). pnpm only orchestrates shell commands; there are no JS dependencies.",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d db",
+    "db:psql": "docker compose exec db psql -U recanime -d recanime",
+    "db:logs": "docker compose logs -f db",
+    "api:dev": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api serve",
+    "api:build": "cd services/api && go build -trimpath -o bin/api ./cmd/api",
+    "api:test": "cd services/api && go test ./... -race -count=1",
+    "api:test:it": "cd services/api && TEST_DATABASE_URL=postgres://recanime:recanime@127.0.0.1:5433/recanime_test?sslmode=disable go test ./... -race -count=1 -p 1",
+    "api:lint": "cd services/api && golangci-lint run",
+    "api:vet": "cd services/api && go vet ./...",
+    "api:fmt": "cd services/api && gofmt -l -w . && go mod tidy",
+    "migrate": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api migrate up",
+    "migrate:status": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api migrate status",
+    "api:docker:build": "docker build -t recanime-api:local services/api",
+    "api:docker:run": "docker run --rm -p 8080:8080 --env-file .env -e DATABASE_URL=postgres://recanime:recanime@host.docker.internal:5433/recanime?sslmode=disable recanime-api:local",
+    "apple:gen": "cd apple && xcodegen generate",
+    "apple:build": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnime -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build",
+    "apple:test": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnime -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build test",
+    "apple:test:kit": "swift test --package-path packages/RecAnimeKit",
+    "apple:watch:build": "pnpm apple:gen && xcodebuild -project apple/RecAnime.xcodeproj -scheme RecAnimeWatch -destination 'platform=watchOS Simulator,name=Watch S11' build",
+    "apple:runtime:watch": "xcodebuild -downloadPlatform watchOS",
+    "apple:fmt": "swiftformat apple packages",
+    "apple:lint:tokens": "sh apple/scripts/check-theme-tokens.sh",
+    "deploy:api": "sh infra/gcp/deploy.sh"
+  }
+}

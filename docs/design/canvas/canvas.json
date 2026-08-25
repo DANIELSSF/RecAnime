@@ -1,0 +1,118 @@
+{
+  "artboards": [
+    {
+      "file": "Login.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Login"
+    },
+    {
+      "file": "Main.dc.html",
+      "x": 492,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Temporada"
+    },
+    {
+      "file": "Top.dc.html",
+      "x": 984,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Top"
+    },
+    {
+      "file": "Recomendados.dc.html",
+      "x": 1476,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Recomendados"
+    },
+    {
+      "file": "MiLista.dc.html",
+      "x": 1968,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Mi lista"
+    },
+    {
+      "file": "Detalle.dc.html",
+      "x": 2460,
+      "y": 0,
+      "w": 402,
+      "h": 874,
+      "title": "Detalle"
+    },
+    {
+      "file": "TemporadaClaro.dc.html",
+      "x": 0,
+      "y": 1024,
+      "w": 402,
+      "h": 874,
+      "title": "Temporada · claro"
+    },
+    {
+      "file": "DetalleClaro.dc.html",
+      "x": 492,
+      "y": 1024,
+      "w": 402,
+      "h": 874,
+      "title": "Detalle · claro"
+    },
+    {
+      "file": "WatchViendo.dc.html",
+      "x": 1024,
+      "y": 1024,
+      "w": 416,
+      "h": 496,
+      "title": "Watch · Viendo"
+    },
+    {
+      "file": "WatchDetalle.dc.html",
+      "x": 1530,
+      "y": 1024,
+      "w": 416,
+      "h": 496,
+      "title": "Watch · Detalle"
+    },
+    {
+      "file": "Complicaciones.dc.html",
+      "x": 1024,
+      "y": 1650,
+      "w": 720,
+      "h": 240,
+      "title": "Complicaciones"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "paleta",
+      "x": -360,
+      "y": 0,
+      "w": 300,
+      "text": "Paleta RecAnime (un solo acento)\n\nAcento violeta/índigo: #6E5BFF (claro) · #8577FF (oscuro)\nAcento profundo: #4A3BD9 · #5A4BEA\nPendiente: #8E8AB5 · #9A96C4\nViendo: = acento\nVisto: #4F6BFF · #6C84FF\nFavorito: #C05BFF · #CE7BFF\nFondos y texto: colores semánticos del sistema (systemBackground, label, secondaryLabel).\nPuntuaciones en gris secundario: nunca amarillo."
+    },
+    {
+      "id": "glass",
+      "x": -360,
+      "y": 330,
+      "w": 300,
+      "text": "Liquid Glass — dónde sí y dónde no\n\nSÍ (lo pone el sistema): tab bar flotante, pestaña Buscar separada, accesorio inferior \"Viendo ahora\" (como el mini reproductor), toolbars, sheets, botones .glass/.glassProminent.\n\nSÍ (a mano, pocos sitios): clúster de acciones del Detalle (GlassEffectContainer), chips de filtro en Top, control segmentado de Mi lista y el toast de error (no aparece en estos mockups).\n\nNO: filas, tarjetas, posters, badges, cabeceras, barras de progreso."
+    },
+    {
+      "id": "notas",
+      "x": -360,
+      "y": 620,
+      "w": 300,
+      "text": "Notas\n\n· Mockups estáticos (no prototipo clicable).\n· Sin barra de estado, indicador de inicio ni teclado dibujados: en el dispositivo los pone iOS.\n· Los posters son marcadores de posición (en la app son las imágenes de MAL).\n· En Detalle la tab bar aparece minimizada (tabBarMinimizeBehavior .onScrollDown) con el accesorio en línea.\n· Sinopsis y textos de recomendaciones llegan en inglés desde MAL; la interfaz va en español."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

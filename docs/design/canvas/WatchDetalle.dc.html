@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: transparent; }
+  a { color: #8577FF; text-decoration: none; } a:hover { color: #6E5BFF; }
+  .root {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; position: relative; overflow: hidden;
+    color: var(--label); background: var(--bg);
+  }
+  .dark {
+    --bg: #000000; --bg2: #1C1C1E; --bg3: #2C2C2E;
+    --label: #FFFFFF; --label2: rgba(235,235,245,0.60); --label3: rgba(235,235,245,0.30);
+    --sep: rgba(84,84,88,0.65); --fill: rgba(120,120,128,0.24); --fill2: rgba(120,120,128,0.16);
+    --accent: #8577FF; --accent-deep: #5A4BEA; --accent-soft: rgba(133,119,255,0.18);
+    --pending: #9A96C4; --watched: #6C84FF; --favorite: #CE7BFF;
+    --glass-bg: rgba(255,255,255,0.10); --glass-border: rgba(255,255,255,0.16);
+    --glass-hi: rgba(255,255,255,0.22); --glass-shadow: rgba(0,0,0,0.45);
+    --glass-sel: rgba(255,255,255,0.18);
+  }
+  .light {
+    --bg: #FFFFFF; --bg2: #F2F2F7; --bg3: #E5E5EA;
+    --label: #000000; --label2: rgba(60,60,67,0.60); --label3: rgba(60,60,67,0.30);
+    --sep: rgba(60,60,67,0.29); --fill: rgba(120,120,128,0.20); --fill2: rgba(120,120,128,0.12);
+    --accent: #6E5BFF; --accent-deep: #4A3BD9; --accent-soft: rgba(110,91,255,0.14);
+    --pending: #8E8AB5; --watched: #4F6BFF; --favorite: #C05BFF;
+    --glass-bg: rgba(255,255,255,0.55); --glass-border: rgba(255,255,255,0.75);
+    --glass-hi: rgba(255,255,255,0.9); --glass-shadow: rgba(0,0,0,0.14);
+    --glass-sel: rgba(255,255,255,0.85);
+  }
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 30px var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  }
+  .capsule { border-radius: 999px; }
+  .lt { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.37px; }
+  .t1 { font-size: 28px; line-height: 34px; font-weight: 700; }
+  .t2 { font-size: 22px; line-height: 28px; font-weight: 700; }
+  .t3 { font-size: 20px; line-height: 25px; font-weight: 600; }
+  .hl { font-size: 17px; line-height: 22px; font-weight: 600; }
+  .body { font-size: 17px; line-height: 22px; }
+  .sub { font-size: 15px; line-height: 20px; }
+  .fn { font-size: 13px; line-height: 18px; }
+  .c1 { font-size: 12px; line-height: 16px; }
+  .c2 { font-size: 11px; line-height: 13px; }
+  .sec { color: var(--label2); }
+  .ter { color: var(--label3); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .row { display: flex; align-items: center; }
+  .col { display: flex; flex-direction: column; }
+  .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .poster { border-radius: 12px; position: relative; overflow: hidden; flex: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .poster::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 20% 0%, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%),
+                linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.35) 100%); }
+  .hair { height: 0.5px; background: var(--sep); }
+  .progress { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
+  .progress > div { height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--watched)); }
+  .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; line-height: 13px; }
+  .chip { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; font-size: 15px;
+    font-weight: 600; line-height: 20px; color: var(--label); white-space: nowrap; }
+  .chip.sel { background: var(--accent); border-color: transparent; color: #FFFFFF;
+    box-shadow: 0 6px 18px rgba(110,91,255,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .icon { width: 24px; height: 24px; flex: none; }
+  .avatar { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700; color: #FFFFFF;
+    background: linear-gradient(135deg, #8577FF, #4A3BD9); }
+
+  .watch { border-radius: 96px; background: #000000; color: #FFFFFF; }
+  .wrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: #1C1C1E; }
+</style>
+</helmet>
+<div class="root dark watch" style="width: 416px; height: 496px;">
+
+  <div class="col" style="padding: 40px 16px 0 16px; gap: 6px; align-items: center;">
+    <div class="row" style="width: 100%; justify-content: space-between;">
+      <span class="row" style="color: var(--accent);"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"><path d="M15 5l-7 7 7 7"></path></svg></span>
+      <span class="sub clamp2" style="font-weight: 600; text-align: right; max-width: 240px;">Frieren 2nd Season</span>
+    </div>
+    <div style="position: relative; width: 150px; height: 150px; margin-top: 4px;">
+      <svg viewBox="0 0 150 150" width="150" height="150">
+        <circle cx="75" cy="75" r="58" fill="none" stroke="rgba(120,120,128,0.32)" stroke-width="12"></circle>
+        <circle cx="75" cy="75" r="58" fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-dasharray="106.3 258.1" transform="rotate(-90 75 75)"></circle>
+        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8577FF"></stop><stop offset="1" stop-color="#6C84FF"></stop></linearGradient></defs>
+      </svg>
+      <div class="col" style="position: absolute; inset: 0; align-items: center; justify-content: center; gap: 0;">
+        <span class="t1 mono" style="font-weight: 700;">7</span>
+        <span class="fn sec mono">de 24</span>
+      </div>
+    </div>
+    <div class="col" style="width: 100%; gap: 8px; margin-top: 10px;">
+      <div class="glass capsule row" style="height: 50px; justify-content: center; gap: 8px; background: var(--accent); border-color: rgba(255,255,255,0.3); color: #FFFFFF; box-shadow: 0 8px 20px rgba(110,91,255,0.45), inset 0 1px 0 rgba(255,255,255,0.4);">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 5v14M5 12h14"></path></svg><span class="hl">Episodio visto</span>
+      </div>
+      <div class="glass capsule row" style="height: 44px; justify-content: center; color: var(--label);">
+        <span class="sub" style="font-weight: 600;">Deshacer</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

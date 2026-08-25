@@ -1,0 +1,54 @@
+name: api-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ["services/api/**", ".github/workflows/api-ci.yml"]
+  pull_request:
+    paths: ["services/api/**", ".github/workflows/api-ci.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: vet + tests (unit + integration)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: recanime
+          POSTGRES_PASSWORD: recanime
+          POSTGRES_DB: recanime_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U recanime -d recanime_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+      - run: go vet ./...
+      - run: go test ./... -race -count=1 -p 1
+        env:
+          TEST_DATABASE_URL: postgres://recanime:recanime@localhost:5432/recanime_test?sslmode=disable
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: services/api
