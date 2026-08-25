@@ -48,7 +48,17 @@ struct WatchingListView: View {
         .navigationTitle("Viendo")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Actualizar", systemImage: "arrow.clockwise") { Task { await deps.refresh(throttle: false) } }
+                Button {
+                    Task { await deps.refresh(throttle: false) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .tint(.clear) // neutral glass; only the symbol carries the accent
+                .accessibilityLabel("Actualizar")
             }
         }
         .task { await deps.refresh(throttle: true) }
