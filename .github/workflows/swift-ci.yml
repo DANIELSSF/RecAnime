@@ -43,7 +43,7 @@ jobs:
         run: brew install swiftformat
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
@@ -100,7 +100,7 @@ jobs:
           [ -f "$ws/Package.resolved" ] || echo '{"pins":[],"version":3}' > "$ws/Package.resolved"
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
