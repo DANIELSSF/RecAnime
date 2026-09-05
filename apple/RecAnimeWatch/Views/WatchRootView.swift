@@ -6,10 +6,19 @@ struct WatchRootView: View {
     @Environment(WatchDependencies.self) private var deps
 
     var body: some View {
-        if deps.canUseAPI {
+        // No SessionStore means a dev-bypass build: the API needs no credentials.
+        if deps.session == nil {
             WatchingListView()
         } else {
-            NotSignedInView()
+            switch deps.session?.state {
+            case .signedIn:
+                WatchingListView()
+            case .loading:
+                ProgressView("Cargando…")
+                    .navigationTitle("RecAnime")
+            default:
+                NotSignedInView()
+            }
         }
     }
 }
@@ -25,6 +34,12 @@ struct NotSignedInView: View {
             Text("Abre RecAnime en tu iPhone para sincronizar tu sesión.")
                 .font(.footnote)
                 .multilineTextAlignment(.center)
+            if let error = deps.lastError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
             Button("Reintentar") { deps.connectivity.requestSession() }
                 .buttonStyle(.glass)
         }

@@ -59,11 +59,19 @@ public struct SupabaseTokenProvider: TokenProvider {
     }
 
     public func accessToken() async throws -> String {
-        try await auth.session.accessToken
+        do {
+            return try await auth.session.accessToken
+        } catch {
+            throw APIError.fromAuthFailure(error)
+        }
     }
 
     public func forceRefresh() async throws -> String {
-        try await auth.refreshSession().accessToken
+        do {
+            return try await auth.refreshSession().accessToken
+        } catch {
+            throw APIError.fromAuthFailure(error)
+        }
     }
 }
 

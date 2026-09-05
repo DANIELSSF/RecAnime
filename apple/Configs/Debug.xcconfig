@@ -4,3 +4,6 @@ RA_ENVIRONMENT = debug
 // "$()" keeps "//" from being parsed as a comment. Replace the host with your Mac's name or LAN IP.
 API_BASE_URL = http:/$()/localhost:8080
 API_BASE_URL_WATCH = http:/$()/localhost:8080
+
+// Last on purpose: the machine-local override must come after the defaults above to win in Debug.
+#include? "Local.xcconfig"

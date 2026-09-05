@@ -4,8 +4,8 @@ import RecAnimeCore
 import RecAnimeKit
 import WatchConnectivity
 
-/// iPhone side of WatchConnectivity: ships a dedicated Supabase session plus a data snapshot to the
-/// Watch (application context, latest wins) and reacts to the Watch's requests.
+/// iPhone side of WatchConnectivity: ships a data snapshot to the Watch (application context, latest
+/// wins), mints a dedicated Supabase session for it (user info, delivered once) and reacts to its requests.
 @MainActor
 @Observable
 final class PhoneWatchSync: NSObject {
@@ -19,8 +19,15 @@ final class PhoneWatchSync: NSObject {
     private let library: LibraryStore
     private let schedule: ScheduleStore
     private let notifications: NotificationCoordinator
-    private var lastMintedSession: WatchSession?
+    /// Only the timestamp is kept: a minted session is never stored nor resent, because its refresh
+    /// token rotates on the Watch and replaying a consumed one revokes the whole token family.
+    private var lastMintedAt: Date?
+    /// A session minted before WCSession finished activating; sent once by `activationDidCompleteWith`.
+    private var pendingSessionTransfer: WatchSession?
     private var activated = false
+
+    /// A `needsSession` arriving right after a mint is a duplicate: the Watch has not applied it yet.
+    private static let mintCooldown: TimeInterval = 30
 
     init(config: AppConfig, library: LibraryStore, schedule: ScheduleStore, notifications: NotificationCoordinator) {
         self.config = config
@@ -45,11 +52,12 @@ final class PhoneWatchSync: NSObject {
         let minter = SupabaseAuthFactory.makeMinter(url: supabaseURL, publishableKey: config.supabasePublishableKey)
         do {
             let session = try await minter.signInWithIdToken(credentials: .init(provider: .google, idToken: idToken, accessToken: accessToken))
-            lastMintedSession = session.watchSession
+            lastMintedAt = .now
             lastError = nil
+            transferSession(session.watchSession)
             await pushSnapshot()
         } catch {
-            lastError = error.localizedDescription
+            lastError = "Sesión del reloj: \(error.localizedDescription)"
         }
     }
 
@@ -59,11 +67,35 @@ final class PhoneWatchSync: NSObject {
             let tokens = try await GoogleSignInCoordinator.refreshedTokens()
             await mintSession(idToken: tokens.idToken, accessToken: tokens.accessToken)
         } catch {
-            lastError = error.localizedDescription
+            lastError = "Sesión del reloj: \(error.localizedDescription)"
         }
     }
 
-    /// Sends the latest context: session (if any), dev-bypass flag, watching list and schedule.
+    /// Credentials travel as user info: queued, delivered exactly once and in order, and they survive the
+    /// Watch app not running — unlike the application context, which is re-read on every activation.
+    private func transferSession(_ session: WatchSession) {
+        guard activated, WCSession.default.activationState == .activated else {
+            // Not activated yet: keep this never-sent session and flush it once activation completes.
+            pendingSessionTransfer = session
+            return
+        }
+        pendingSessionTransfer = nil
+        guard let data = try? JSONEncoder.recanime.encode(session) else { return }
+        WCSession.default.transferUserInfo([
+            "type": WatchMessageType.session.rawValue,
+            "session": data,
+            "mintedAt": session.mintedAt.timeIntervalSince1970,
+        ])
+    }
+
+    /// True while a minted session is still queued: the Watch will get it without another mint.
+    private var hasOutstandingSessionTransfer: Bool {
+        WCSession.default.outstandingUserInfoTransfers.contains {
+            $0.userInfo["type"] as? String == WatchMessageType.session.rawValue
+        }
+    }
+
+    /// Sends the latest context: dev-bypass flag, API base URL, watching list and schedule (never a session).
     func pushSnapshot() async {
         guard activated, WCSession.default.activationState == .activated else { return }
         if schedule.needsRefresh() {
@@ -78,9 +110,6 @@ final class PhoneWatchSync: NSObject {
         ]
         if let data = try? JSONEncoder.recanime.encode(snapshot) {
             context["snapshot"] = data
-        }
-        if let session = lastMintedSession, let data = try? JSONEncoder.recanime.encode(session) {
-            context["session"] = data
         }
         do {
             try WCSession.default.updateApplicationContext(context)
@@ -107,8 +136,14 @@ final class PhoneWatchSync: NSObject {
     }
 
     func sendSignedOut() {
-        lastMintedSession = nil
+        lastMintedAt = nil
+        pendingSessionTransfer = nil
         guard activated, WCSession.default.activationState == .activated else { return }
+        // A queued session would sign the Watch back in after the sign-out context arrives.
+        for transfer in WCSession.default.outstandingUserInfoTransfers
+            where transfer.userInfo["type"] as? String == WatchMessageType.session.rawValue {
+            transfer.cancel()
+        }
         try? WCSession.default.updateApplicationContext(["type": WatchMessageType.signedOut.rawValue, "at": Date.now.timeIntervalSince1970])
     }
 
@@ -126,6 +161,9 @@ extension PhoneWatchSync: WCSessionDelegate {
         Task { @MainActor in
             refreshState()
             if activated {
+                if let pending = pendingSessionTransfer {
+                    transferSession(pending)
+                }
                 await pushSnapshot()
             }
         }
@@ -164,13 +202,18 @@ extension PhoneWatchSync: WCSessionDelegate {
     private func handle(type: String) async {
         switch WatchMessageType(rawValue: type) {
         case .needsSession:
-            if lastMintedSession != nil {
-                await pushSnapshot()
-            } else if config.hasAuthConfiguration {
-                await remintSilently()
-            } else {
+            guard config.hasAuthConfiguration else {
                 await pushSnapshot() // dev bypass: the flag in the context is enough
+                return
             }
+            // Minting rotates the refresh token, so never do it while one is in flight or just delivered.
+            if hasOutstandingSessionTransfer {
+                return
+            }
+            if let lastMintedAt, Date.now.timeIntervalSince(lastMintedAt) < Self.mintCooldown {
+                return
+            }
+            await remintSilently()
         case .libraryChanged:
             await library.load()
             notifications.scheduleReplan()

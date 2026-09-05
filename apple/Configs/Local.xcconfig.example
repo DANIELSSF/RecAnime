@@ -1,5 +1,6 @@
 // Copy to Local.xcconfig (gitignored). Xcode > Settings > Accounts > your Apple ID > Personal Team.
 DEVELOPMENT_TEAM = ABCDE12345
 // Optional: LAN address of the Mac running `pnpm api:dev` so a physical iPhone/Watch can reach it.
+// Debug.xcconfig includes this file last, so these values override the debug defaults (Debug builds only).
 // API_BASE_URL = http:/$()/daniels-macbook.local:8080
 // API_BASE_URL_WATCH = http:/$()/192.168.1.20:8080

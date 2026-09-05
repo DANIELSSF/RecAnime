@@ -91,6 +91,14 @@ struct LoginView: View {
         do {
             let tokens = try await GoogleSignInCoordinator.signIn()
             _ = try await session.signInWithGoogle(idToken: tokens.idToken, accessToken: tokens.accessToken)
+            do {
+                _ = try await deps.api.me()
+            } catch {
+                // A rejected account is already signed out by the API's revocation hook and the login screen
+                // shows the reason. Any other failure (offline, server hiccup) would make the Watch mint fail
+                // too: the Watch asks for a session later, when the phone is reachable.
+                return
+            }
             Task { await deps.watchSync.mintSession(idToken: tokens.idToken, accessToken: tokens.accessToken) }
         } catch is CancellationError {
             // User dismissed the Google sheet.

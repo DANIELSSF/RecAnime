@@ -15,14 +15,73 @@ private struct BridgeTokenProvider: TokenProvider {
     }
 }
 
+/// Token provider that always fails; used to check how `APIClient` maps provider errors.
+private struct FailingTokenProvider: TokenProvider {
+    let failure: @Sendable () -> any Error
+
+    func accessToken() async throws -> String {
+        throw failure()
+    }
+
+    func forceRefresh() async throws -> String {
+        throw failure()
+    }
+}
+
+/// Collects the reasons passed to `onAccessRevoked`, which fires from a detached task.
+private final class RevocationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var reasons: [AccessRevocation] = []
+
+    var recorded: [AccessRevocation] {
+        lock.withLock { reasons }
+    }
+
+    var handler: AccessRevokedHandler {
+        { [self] reason in lock.withLock { reasons.append(reason) } }
+    }
+
+    /// Waits for the handler to fire, then returns what it recorded.
+    func awaitReasons(count: Int = 1) async -> [AccessRevocation] {
+        for _ in 0 ..< 100 {
+            let current = recorded
+            if current.count >= count {
+                return current
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return recorded
+    }
+
+    /// Gives a handler that should never fire enough time to prove it did not.
+    func awaitSilence() async -> [AccessRevocation] {
+        try? await Task.sleep(for: .milliseconds(100))
+        return recorded
+    }
+}
+
 @Suite("APIClient", .serialized)
 struct APIClientTests {
     let base = URL(string: "https://api.example.test")!
 
-    func makeClient() -> (APIClient, StaticTokenProvider) {
+    func makeClient(onAccessRevoked: AccessRevokedHandler? = nil) -> (APIClient, StaticTokenProvider) {
         let tokens = StaticTokenProvider()
-        let client = APIClient(baseURL: base, tokenProvider: BridgeTokenProvider(inner: tokens), session: MockURLProtocol.session())
+        let client = APIClient(
+            baseURL: base,
+            tokenProvider: BridgeTokenProvider(inner: tokens),
+            session: MockURLProtocol.session(),
+            onAccessRevoked: onAccessRevoked
+        )
         return (client, tokens)
+    }
+
+    func makeClient(tokenProvider: any TokenProvider, onAccessRevoked: AccessRevokedHandler?) -> APIClient {
+        APIClient(
+            baseURL: base,
+            tokenProvider: tokenProvider,
+            session: MockURLProtocol.session(),
+            onAccessRevoked: onAccessRevoked
+        )
     }
 
     @Test("decodes the envelope and sends the bearer token")
@@ -88,5 +147,97 @@ struct APIClientTests {
         #expect(body?["episodesWatched"] as? Int == 3)
         #expect(body?["favorite"] == nil)
         #expect(put.httpMethod == "PUT")
+    }
+
+    @Test("a token provider that reports a dead session revokes access")
+    func providerUnauthorizedRevokes() async {
+        let recorder = RevocationRecorder()
+        let client = makeClient(
+            tokenProvider: FailingTokenProvider { APIError.unauthorized },
+            onAccessRevoked: recorder.handler
+        )
+        MockURLProtocol.setHandler { request in MockURLProtocol.json(200, #"{"data":{}}"#, for: request) }
+        await #expect(throws: APIError.unauthorized) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitReasons() == [.sessionExpired])
+    }
+
+    @Test("being offline never signs the user out")
+    func providerOfflineKeepsSession() async {
+        let recorder = RevocationRecorder()
+        let client = makeClient(
+            tokenProvider: FailingTokenProvider { URLError(.notConnectedToInternet) },
+            onAccessRevoked: recorder.handler
+        )
+        MockURLProtocol.setHandler { request in MockURLProtocol.json(200, #"{"data":{}}"#, for: request) }
+        await #expect(throws: APIError.network(code: URLError.notConnectedToInternet.rawValue)) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitSilence().isEmpty)
+    }
+
+    @Test("a 401 that survives the refresh revokes access")
+    func persistent401Revokes() async {
+        let recorder = RevocationRecorder()
+        let (client, tokens) = makeClient(onAccessRevoked: recorder.handler)
+        MockURLProtocol.setHandler { request in MockURLProtocol.json(401, #"{"error":{"code":"unauthorized"}}"#, for: request) }
+        await #expect(throws: APIError.unauthorized) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(tokens.refreshes == 1)
+        #expect(await recorder.awaitReasons() == [.sessionExpired])
+    }
+
+    @Test("403 email_not_allowed revokes access and still throws the server error")
+    func emailNotAllowedRevokes() async {
+        let recorder = RevocationRecorder()
+        let (client, _) = makeClient(onAccessRevoked: recorder.handler)
+        MockURLProtocol.setHandler { request in
+            MockURLProtocol.json(403, #"{"error":{"code":"email_not_allowed","message":"no"}}"#, for: request)
+        }
+        await #expect(throws: APIError.server(status: 403, code: "email_not_allowed", message: "no")) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitReasons() == [.emailNotAllowed])
+    }
+
+    @Test("another 403 leaves the session alone")
+    func otherForbiddenKeepsSession() async {
+        let recorder = RevocationRecorder()
+        let (client, _) = makeClient(onAccessRevoked: recorder.handler)
+        MockURLProtocol.setHandler { request in
+            MockURLProtocol.json(403, #"{"error":{"code":"forbidden","message":"no"}}"#, for: request)
+        }
+        await #expect(throws: APIError.server(status: 403, code: "forbidden", message: "no")) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitSilence().isEmpty)
+    }
+
+    @Test("a 403 without a body never touches the session")
+    func forbiddenWithoutBodyKeepsSession() async {
+        let recorder = RevocationRecorder()
+        let (client, _) = makeClient(onAccessRevoked: recorder.handler)
+        MockURLProtocol.setHandler { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!, Data())
+        }
+        await #expect(throws: APIError.server(status: 403, code: nil, message: nil)) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitSilence().isEmpty)
+    }
+
+    @Test("a 500 never touches the session")
+    func serverErrorKeepsSession() async {
+        let recorder = RevocationRecorder()
+        let (client, _) = makeClient(onAccessRevoked: recorder.handler)
+        MockURLProtocol.setHandler { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!, Data())
+        }
+        await #expect(throws: APIError.server(status: 500, code: nil, message: nil)) {
+            let _: APIResponse<User> = try await client.send(.me)
+        }
+        #expect(await recorder.awaitSilence().isEmpty)
     }
 }

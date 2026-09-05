@@ -29,15 +29,26 @@ final class AppDependencies {
     init(config: AppConfig = AppConfig.load(apiBaseURLOverride: UserDefaults.standard.string(forKey: AppDependencies.apiOverrideKey))) {
         self.config = config
         let tokenProvider: any TokenProvider
+        // The API client is the single choke point for lost access: it reports a dead session or a
+        // rejected account and the store turns that into a local sign-out with a reason on screen.
+        let onAccessRevoked: AccessRevokedHandler?
         if config.hasAuthConfiguration, let supabaseURL = config.supabaseURL {
             let store = SessionStore(auth: SupabaseAuthFactory.makeClient(url: supabaseURL, publishableKey: config.supabasePublishableKey))
             session = store
             tokenProvider = store.tokenProvider
+            onAccessRevoked = { reason in
+                await store.revoke(reason)
+                if reason == .emailNotAllowed {
+                    // Forget the Google account so the next attempt shows the chooser.
+                    await MainActor.run { GoogleSignInCoordinator.signOut() }
+                }
+            }
         } else {
             session = nil
             tokenProvider = DevTokenProvider()
+            onAccessRevoked = nil
         }
-        let client = APIClient(baseURL: config.apiBaseURL, tokenProvider: tokenProvider)
+        let client = APIClient(baseURL: config.apiBaseURL, tokenProvider: tokenProvider, onAccessRevoked: onAccessRevoked)
         api = LiveRecAnimeAPI(client: client)
         library = LibraryStore(api: api)
         schedule = ScheduleStore(api: api)

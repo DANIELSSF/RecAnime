@@ -28,6 +28,17 @@ public enum APIError: Error, Sendable, Equatable {
     }
 }
 
+/// Why the device lost access to the API.
+public enum AccessRevocation: Sendable, Equatable {
+    /// The token provider says the session is gone, or a 401 persisted after one refresh.
+    case sessionExpired
+    /// The server answered 403 with code "email_not_allowed".
+    case emailNotAllowed
+}
+
+/// Notified once access is lost. Implementations must be idempotent: the same reason can arrive twice.
+public typealias AccessRevokedHandler = @Sendable (AccessRevocation) async -> Void
+
 /// Decoded envelope.
 public struct APIResponse<T: Sendable>: Sendable {
     public var data: T
@@ -46,12 +57,19 @@ public actor APIClient {
     public let baseURL: URL
     private let tokenProvider: any TokenProvider
     private let session: URLSession
+    private let onAccessRevoked: AccessRevokedHandler?
     private let decoder = JSONDecoder.recanime
 
-    public init(baseURL: URL, tokenProvider: any TokenProvider, session: URLSession = .shared) {
+    public init(
+        baseURL: URL,
+        tokenProvider: any TokenProvider,
+        session: URLSession = .shared,
+        onAccessRevoked: AccessRevokedHandler? = nil
+    ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
         self.session = session
+        self.onAccessRevoked = onAccessRevoked
     }
 
     /// Sends the request and decodes the `{data, meta, pagination}` envelope.
@@ -74,20 +92,52 @@ public actor APIClient {
     }
 
     private func perform(_ endpoint: Endpoint) async throws -> (Data, HTTPURLResponse) {
-        var token = try await tokenProvider.accessToken()
+        var token = try await fetchToken { try await tokenProvider.accessToken() }
         var (data, response) = try await execute(endpoint, token: token)
         if response.statusCode == 401 {
-            token = try await tokenProvider.forceRefresh()
+            token = try await fetchToken { try await tokenProvider.forceRefresh() }
             (data, response) = try await execute(endpoint, token: token)
             if response.statusCode == 401 {
+                // One refresh was not enough: the session is gone.
+                revoke(.sessionExpired)
                 throw APIError.unauthorized
             }
         }
         guard (200 ..< 300).contains(response.statusCode) else {
             let body = try? decoder.decode(APIErrorBody.self, from: data)
+            if response.statusCode == 403, body?.error.code == "email_not_allowed" {
+                revoke(.emailNotAllowed)
+            }
             throw APIError.server(status: response.statusCode, code: body?.error.code, message: body?.error.message)
         }
         return (data, response)
+    }
+
+    /// Runs a token-provider call and normalises its failure. An unknown error never becomes
+    /// `.unauthorized`: being offline must not sign the user out.
+    private func fetchToken(_ fetch: () async throws -> String) async throws -> String {
+        do {
+            return try await fetch()
+        } catch let error as APIError {
+            if error == .unauthorized {
+                revoke(.sessionExpired)
+            }
+            throw error
+        } catch let error as URLError where error.code == .cancelled {
+            throw APIError.cancelled
+        } catch let error as URLError {
+            throw APIError.network(code: error.errorCode)
+        } catch is CancellationError {
+            throw APIError.cancelled
+        } catch {
+            throw APIError.network(code: -1)
+        }
+    }
+
+    /// Fires the revocation handler without blocking the request that discovered the problem.
+    private func revoke(_ reason: AccessRevocation) {
+        guard let onAccessRevoked else { return }
+        Task { await onAccessRevoked(reason) }
     }
 
     private func execute(_ endpoint: Endpoint, token: String) async throws -> (Data, HTTPURLResponse) {

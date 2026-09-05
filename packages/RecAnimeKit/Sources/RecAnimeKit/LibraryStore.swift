@@ -58,13 +58,28 @@ public final class LibraryStore {
         }
     }
 
-    /// Replaces the local state with a snapshot pushed by the iPhone (Watch, before its first fetch).
+    /// Merges a snapshot pushed by the iPhone (Watch, before its first fetch). A locally newer entry
+    /// wins, so an optimistic update made on the Watch is not undone by an older phone snapshot.
     public func applySnapshot(_ snapshot: [LibraryItem]) {
         var merged = items
+        var changed = false
         for item in snapshot {
+            if let local = merged[item.anime.malId] {
+                guard local.entry.updatedAt <= item.entry.updatedAt, local != item else { continue }
+            }
             merged[item.anime.malId] = item
+            changed = true
         }
+        guard changed else { return }
         items = merged
+        rebuildGroups()
+        version += 1
+    }
+
+    /// Drops every entry (sign-out). Unlike `applySnapshot([])`, which merges, this really empties the store.
+    public func clear() {
+        guard !items.isEmpty else { return }
+        items = [:]
         rebuildGroups()
         version += 1
     }

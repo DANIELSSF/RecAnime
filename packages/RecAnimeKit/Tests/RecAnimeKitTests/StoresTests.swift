@@ -10,6 +10,10 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
     var items: [Int: LibraryItem] = [:]
     var failNext = false
     var adjustCalls: [(Int, EpisodesAdjustment)] = []
+    /// Errors returned by successive `adjustEpisodes` calls, in order (`nil` succeeds).
+    var adjustErrors: [APIError?] = []
+    /// Runs inside `adjustEpisodes` before it answers, so a test can interleave work with the await.
+    var onAdjust: (@MainActor @Sendable (Int, EpisodesAdjustment) async -> Void)?
 
     private func item(_ id: Int, _ patch: LibraryPatch?, _ episodes: Int?) throws -> LibraryItem {
         lock.lock(); defer { lock.unlock() }
@@ -157,7 +161,14 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
     }
 
     func adjustEpisodes(_ id: Int, _ adjustment: EpisodesAdjustment) async throws -> LibraryItem {
-        lock.withLock { adjustCalls.append((id, adjustment)) }
+        let hook = lock.withLock {
+            adjustCalls.append((id, adjustment))
+            return onAdjust
+        }
+        await hook?(id, adjustment)
+        if let error = lock.withLock({ adjustErrors.isEmpty ? nil : adjustErrors.removeFirst() }) {
+            throw error
+        }
         return try item(id, nil, adjustment.episodesWatched)
     }
 
@@ -226,6 +237,84 @@ struct LibraryStoreTests {
         #expect(store.items[3]?.entry.episodesWatched == 12)
         await store.flush()
         #expect(store.items[3]?.progress.remaining == 0)
+    }
+
+    @Test("a snapshot never overwrites a newer local entry")
+    func applySnapshot() async throws {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        _ = try await store.setStatus(.watching, for: FakeAPI.sample(1).anime)
+        _ = try await store.setStatus(.watching, for: FakeAPI.sample(2).anime)
+        let now = try #require(store.items[1]?.entry.updatedAt)
+
+        var stale = FakeAPI.sample(1) // older than the local optimistic update
+        stale.entry.status = .pending
+        stale.entry.episodesWatched = 99
+        stale.entry.updatedAt = now.addingTimeInterval(-60)
+        var fresh = FakeAPI.sample(2) // newer than the local entry
+        fresh.entry.status = .watched
+        fresh.entry.episodesWatched = 12
+        fresh.entry.updatedAt = now.addingTimeInterval(60)
+        var unknown = FakeAPI.sample(3)
+        unknown.entry.status = .pending
+        unknown.entry.updatedAt = now
+
+        let before = store.version
+        store.applySnapshot([stale, fresh, unknown])
+        #expect(store.items[1]?.entry.status == .watching)
+        #expect(store.items[1]?.entry.episodesWatched == 0)
+        #expect(store.items[2]?.entry.status == .watched)
+        #expect(store.items[2]?.entry.episodesWatched == 12)
+        #expect(store.items[3] != nil)
+        #expect(store.version > before)
+
+        // Nothing changes the second time, so the version stays put.
+        let after = store.version
+        store.applySnapshot([stale, fresh, unknown])
+        #expect(store.version == after)
+    }
+
+    @Test("a snapshot with the same updatedAt as local wins on content differences")
+    func applySnapshotTiesFavorIncoming() async throws {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        let item = try await store.setStatus(.watching, for: FakeAPI.sample(1).anime)
+        let tie = item.entry.updatedAt // exactly the local entry's `updatedAt`, not older or newer
+
+        var incoming = FakeAPI.sample(1)
+        incoming.entry.status = .watched
+        incoming.entry.episodesWatched = 12
+        incoming.entry.updatedAt = tie
+
+        let before = store.version
+        store.applySnapshot([incoming])
+        #expect(store.items[1]?.entry.status == .watched)
+        #expect(store.items[1]?.entry.episodesWatched == 12)
+        #expect(store.version > before)
+    }
+
+    @Test("clear empties the store, unlike an empty snapshot")
+    func clearEmptiesStore() async throws {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        _ = try await store.setStatus(.watching, for: FakeAPI.sample(1).anime)
+        _ = try await store.toggleFavorite(for: FakeAPI.sample(2).anime)
+
+        let before = store.version
+        store.applySnapshot([]) // merge semantics: nothing to merge, nothing changes
+        #expect(store.items.count == 2)
+        #expect(store.version == before)
+
+        store.clear()
+        #expect(store.items.isEmpty)
+        #expect(store.groups.watching.isEmpty)
+        #expect(store.groups.favorites.isEmpty)
+        #expect(store.nowWatching == nil)
+        #expect(store.version > before)
+
+        let after = store.version
+        store.clear() // already empty: no version bump
+        #expect(store.version == after)
     }
 
     @Test("watched fills the episode count; nowWatching picks an unfinished entry")

@@ -13,6 +13,9 @@ public final class SessionStore {
         case signedIn(AuthUser)
     }
 
+    public static let expiredMessage = "Tu sesión ha caducado. Inicia sesión de nuevo."
+    public static let notAllowedMessage = "Esta cuenta no está autorizada para usar RecAnime."
+
     public private(set) var state: State = .loading
     public let auth: AuthClient
     public let tokenProvider: any TokenProvider
@@ -76,10 +79,30 @@ public final class SessionStore {
         state = .signedOut(message: nil)
     }
 
+    /// Local sign-out with a reason shown on the login screen. No-op when already signed out.
+    public func invalidate(message: String) async {
+        guard case .signedIn = state else { return }
+        // `.local` only drops the device session; the SDK emits `.signedOut` before the network call,
+        // so the message is written last and survives that event.
+        try? await auth.signOut(scope: .local)
+        // A sign-in that completed while this call was suspended left a new session behind: keep it.
+        guard auth.currentSession == nil else { return }
+        state = .signedOut(message: message)
+    }
+
+    /// Turns a revocation reported by `APIClient` into the matching local sign-out.
+    public func revoke(_ reason: AccessRevocation) async {
+        switch reason {
+        case .sessionExpired:
+            await invalidate(message: Self.expiredMessage)
+        case .emailNotAllowed:
+            await invalidate(message: Self.notAllowedMessage)
+        }
+    }
+
     /// Called when the API keeps answering 401 after a refresh: the session is gone.
     public func handleUnauthorized() async {
-        try? await auth.signOut(scope: .local)
-        state = .signedOut(message: "Tu sesión ha caducado. Inicia sesión de nuevo.")
+        await invalidate(message: Self.expiredMessage)
     }
 
     public var user: AuthUser? {

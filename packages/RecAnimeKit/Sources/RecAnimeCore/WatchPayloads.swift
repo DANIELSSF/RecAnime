@@ -83,6 +83,7 @@ public struct ComplicationSnapshot: Codable, Sendable, Hashable {
 /// Message envelope exchanged over WatchConnectivity (JSON in the "payload" key).
 public enum WatchMessageType: String, Codable, Sendable {
     case context
+    case session
     case signedOut
     case needsSession
     case libraryChanged
