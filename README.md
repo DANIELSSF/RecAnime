@@ -19,16 +19,18 @@ Monorepo: Go API (`services/api`), iOS 26 / watchOS 26 SwiftUI apps (`apple/`, `
 - Xcode 26+, `brew install go golangci-lint xcodegen swiftformat`, Docker Desktop
 - Node ≥ 22.13 for pnpm (`nvm use` reads `.nvmrc`); pnpm is only a task runner, there are no JS dependencies
 
-## Status (2026-08-24)
+## Status (2026-09-05)
 
-- `services/api`: complete — auth (Supabase JWKS + allowlist, dev bypass), 12 h Jikan cache with stale-on-error, catalog, library, franchise chain, schedule; unit + integration tests, golden fixtures, Cloud Run scripts.
-- `apple/`: iOS app (all screens, Liquid Glass shell, local notifications, background refresh), Watch app (list, +1, outbox, WatchConnectivity sync with a dedicated Supabase session), complication. Verified in the iOS 26.5 / watchOS 26.5 simulators against the local API.
+- `services/api`: complete — auth (Supabase JWKS + allowlist, dev bypass), 12 h Jikan cache with stale-on-error, catalog, library, franchise chain, schedule; unit + integration tests, golden fixtures, Cloud Run scripts. Recent hardening landed: server-side SFW filtering, filter-only browse on `/v1/search`, batch library upsert, user re-key, request budgets and resilient boot.
+- `apple/`: iOS app (all screens, Liquid Glass shell, local notifications, background refresh), Watch app (list, +1, outbox), complication. The phone↔watch session and sync path (WatchConnectivity with a dedicated Supabase session) landed. Verified in the iOS 26.5 / watchOS 26.5 simulators against the local API.
+- CI covers both sides: `api-ci` for Go, `swift-ci` for the Swift packages and the Xcode apps (see [CI](#ci)).
 - Pending user-side setup: Supabase project + Google OAuth clients (`apple/Configs/Secrets.xcconfig`, `.env`), Google Cloud project for Cloud Run, Apple ID in Xcode (`apple/Configs/Local.xcconfig`).
 
 ## Quick start
 
-pnpm needs Node ≥ 22.13: run `nvm use` first (reads `.nvmrc`). Every script also exists as a `make` target
-(`make api`, `make api-test`, `make lan`…) for shells without nvm.
+pnpm needs Node ≥ 22.13: run `nvm use` first (reads `.nvmrc`). Every pnpm script also exists as a `make` target for
+shells without nvm: same name with `:` replaced by `-` (`pnpm api:test` → `make api-test`), except `pnpm api:dev` →
+`make api` and `pnpm api:lan` → `make lan`. `make help` lists them all.
 
 ```sh
 nvm use
@@ -46,3 +48,16 @@ without signing in; `UPDATE_GOLDEN=1 pnpm api:test:it && pnpm fixtures:sync` ref
 API contract: `docs/api-contract.md`. Design canvas sources: `docs/design/` (`node docs/design/build-canvas.mjs`).
 
 Apple side: `pnpm apple:gen` then open `apple/RecAnime.xcodeproj` (see `apple/README.md` for signing and device steps).
+`pnpm apple:test` runs the unit bundle only (`RecAnimeTests`); `pnpm apple:test:all` runs the whole scheme test action
+(unit + UI bundles, which self-skip unless their env flags are set). `pnpm apple:test:kit` and `pnpm apple:test:ui-pkg`
+run the Swift package suites without Xcode.
+
+## CI
+
+| Workflow | Runs on | Checks |
+|---|---|---|
+| `.github/workflows/api-ci.yml` | `ubuntu-latest`, paths `services/api/**` | `go vet`, unit + integration tests against a Postgres 17 service, `gofmt`, `golangci-lint`, `govulncheck` |
+| `.github/workflows/swift-ci.yml` | `macos-26`, paths `packages/**`, `apple/**`, `.swiftformat`, golden fixtures | `swift test` for both packages, `swiftformat --lint`, the theme-token script, the Go→Swift fixture diff, and `xcodebuild` builds of the iOS and watchOS apps plus `RecAnimeTests` |
+
+Both workflows cancel superseded runs on the same ref. `.github/dependabot.yml` opens weekly updates for Go modules,
+GitHub Actions and the Swift package.

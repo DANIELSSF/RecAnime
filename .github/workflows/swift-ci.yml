@@ -1,0 +1,161 @@
+name: swift-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "apple/**"
+      - ".swiftformat"
+      - "services/api/testdata/golden/**"
+      - ".github/workflows/swift-ci.yml"
+  pull_request:
+    paths:
+      - "packages/**"
+      - "apple/**"
+      - ".swiftformat"
+      - "services/api/testdata/golden/**"
+      - ".github/workflows/swift-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    name: packages (swift test + format + tokens + fixtures)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # Homebrew is preinstalled on the macOS runners; installing an already
+      # present formula is a no-op.
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            packages/*/.build
+          key: spm-packages-${{ runner.os }}-${{ hashFiles('packages/*/Package.resolved', 'packages/*/Package.swift') }}
+          restore-keys: |
+            spm-packages-${{ runner.os }}-
+
+      - name: Test RecAnimeKit
+        run: swift test --package-path packages/RecAnimeKit
+
+      - name: Test RecAnimeUI
+        run: swift test --package-path packages/RecAnimeUI
+
+      # --lint goes after the paths so it is not parsed as consuming one.
+      - name: SwiftFormat lint
+        run: swiftformat apple packages --lint
+
+      - name: Theme tokens
+        run: sh apple/scripts/check-theme-tokens.sh
+
+      - name: Swift fixtures match the Go golden files
+        run: |
+          if ! diff -rq services/api/testdata/golden packages/RecAnimeKit/Sources/RecAnimeKitTesting/Fixtures; then
+            echo "::error::Swift fixtures are stale. Run: UPDATE_GOLDEN=1 pnpm api:test:it && pnpm fixtures:sync"
+            exit 1
+          fi
+
+  apps:
+    name: apps (xcodebuild iOS + watchOS)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen and xcbeautify
+        run: brew install xcodegen xcbeautify
+
+      # Without a workspace lock, xcodebuild (verified with 26.6) rewrites the committed
+      # packages/RecAnimeKit/Package.resolved with the app-level graph and never creates its own
+      # file. An empty pin list is a valid v3 lock (originHash is optional) and only forces a resolve.
+      - name: Generate the Xcode project
+        run: |
+          cd apple && xcodegen generate
+          ws=RecAnime.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$ws"
+          [ -f "$ws/Package.resolved" ] || echo '{"pins":[],"version":3}' > "$ws/Package.resolved"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .dd/SourcePackages
+          key: spm-apps-${{ runner.os }}-${{ hashFiles('packages/*/Package.resolved', 'packages/*/Package.swift', 'apple/project.yml') }}
+          restore-keys: |
+            spm-apps-${{ runner.os }}-
+
+      - name: Resolve package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project apple/RecAnime.xcodeproj \
+            -scheme RecAnime \
+            -derivedDataPath .dd
+
+      - name: Build RecAnime (iOS)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project apple/RecAnime.xcodeproj \
+            -scheme RecAnime \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+
+      - name: Build RecAnimeWatch (watchOS)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project apple/RecAnime.xcodeproj \
+            -scheme RecAnimeWatch \
+            -destination 'generic/platform=watchOS Simulator' \
+            -derivedDataPath .dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+
+      # Tests need a real simulator, so pick whatever iPhone 17 runtime the
+      # image ships instead of hard-coding a name and an OS version.
+      - name: Run RecAnimeTests
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone 17")))')
+          echo "Simulator UDID: $UDID"
+          xcodebuild test \
+            -project apple/RecAnime.xcodeproj \
+            -scheme RecAnime \
+            -destination "id=$UDID" \
+            -only-testing:RecAnimeTests \
+            -derivedDataPath .dd \
+            -resultBundlePath RecAnimeTests.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RecAnimeTests-xcresult
+          path: RecAnimeTests.xcresult
+          if-no-files-found: ignore

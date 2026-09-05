@@ -175,6 +175,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.tests
+        # Test bundles need a generated Info.plist; the project-level default is NO.
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: RecAnime
       - package: RecAnimeKit
@@ -187,6 +189,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.danielsantiago.recanime.uitests
+        # Test bundles need a generated Info.plist; the project-level default is NO.
+        GENERATE_INFOPLIST_FILE: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
     dependencies:
       - target: RecAnime

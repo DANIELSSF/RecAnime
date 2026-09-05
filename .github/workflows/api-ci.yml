@@ -10,10 +10,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: api-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: vet + tests (unit + integration)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-alpine
@@ -43,6 +48,7 @@ jobs:
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -52,3 +58,19 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           working-directory: services/api
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: services/api/go.mod
+          work-dir: services/api
+          go-package: ./...

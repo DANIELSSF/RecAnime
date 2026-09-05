@@ -58,7 +58,14 @@ public struct BrowseQuery: Hashable, Sendable {
     public var type: String?
     public var minScore: Double?
 
-    public init(genres: [Int] = [], orderBy: String? = nil, sort: String? = "desc", status: String? = nil, type: String? = nil, minScore: Double? = nil) {
+    public init(
+        genres: [Int] = [],
+        orderBy: String? = nil,
+        sort: String? = "desc",
+        status: String? = nil,
+        type: String? = nil,
+        minScore: Double? = nil
+    ) {
         self.genres = genres
         self.orderBy = orderBy
         self.sort = sort

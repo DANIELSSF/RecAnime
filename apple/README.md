@@ -25,11 +25,18 @@ Supabase/Google values exist) and runs in the simulator without signing.
 
 ## Simulator
 
+The scripts target two simulators by their exact names: `iPhone 17 Pro` (iOS 26.5) and
+`Apple Watch Series 11 (46mm)` (watchOS 26.5). `xcrun simctl list devices available` shows what is installed.
+
 ```sh
 pnpm apple:build          # iPhone 17 Pro, iOS 26.5
-pnpm apple:test           # unit tests
-pnpm apple:watch:build    # Apple Watch Series 11 (46mm); runtime: pnpm apple:runtime:watch
+pnpm apple:test           # unit bundle only (RecAnimeTests)
+pnpm apple:test:all       # whole scheme test action: RecAnimeTests + RecAnimeUITests
+pnpm apple:watch:build    # Apple Watch Series 11 (46mm), watchOS 26.5; runtime: pnpm apple:runtime:watch
 ```
+
+Every script has a `make` counterpart for shells without nvm (`make apple-build`, `make apple-test`,
+`make apple-test-all`, `make apple-watch-build`).
 
 Pair a watch simulator with the iPhone simulator once (`xcrun simctl pair <watchUDID> <iphoneUDID>`) so
 WatchConnectivity works between them.

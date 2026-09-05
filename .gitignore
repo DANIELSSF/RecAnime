@@ -30,7 +30,8 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
-Package.resolved
+# packages/*/Package.resolved is committed on purpose: it pins the transitive SwiftPM graph.
+# (apple-gen seeds the generated project's own lock so xcodebuild does not overwrite it.)
 
 # --- OS / editors ---
 .DS_Store
