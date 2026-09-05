@@ -15,11 +15,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/danielssf/recanime/services/api/internal/anime"
 	"github.com/danielssf/recanime/services/api/internal/auth"
@@ -45,6 +48,15 @@ type env struct {
 	catalog *catalog.Service
 	sched   *schedule.Service
 	coord   *cache.Coordinator
+	pool    *pgxpool.Pool
+}
+
+// exec runs a statement against the test database (used to simulate rows the fixtures cannot express).
+func (e *env) exec(sql string, args ...any) {
+	e.t.Helper()
+	if _, err := e.pool.Exec(context.Background(), sql, args...); err != nil {
+		e.t.Fatalf("exec %q: %v", sql, err)
+	}
 }
 
 // listFixture builds a Jikan list payload out of the cached full-anime fixtures.
@@ -101,7 +113,7 @@ func newEnv(t *testing.T, authCfg *httpapi.AuthConfig) *env {
 	}
 	fake.RouteBytes("/recommendations/anime", recommendationsFixture())
 
-	e := &env{t: t, jikan: fake, now: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)}
+	e := &env{t: t, jikan: fake, pool: pool, now: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	limiter := ratelimit.New(1000, 60000)
 	jk := jikan.New(fake.Server.URL, fake.Server.Client(), limiter, "test")
@@ -112,7 +124,7 @@ func newEnv(t *testing.T, authCfg *httpapi.AuthConfig) *env {
 	e.anime.SetNow(e.clock)
 	e.catalog = catalog.NewService(st, jk, e.coord, 12*time.Hour, 12*time.Hour, 30*time.Second, logger)
 	e.catalog.SetNow(e.clock)
-	e.sched = schedule.NewService(st, e.anime, e.catalog, logger)
+	e.sched = schedule.NewService(st, e.anime, e.catalog, 6, logger)
 	e.sched.SetNow(e.clock)
 
 	cfg := httpapi.AuthConfig{DevBypass: true, DevBypassEmail: devEmail, Allowlist: auth.NewAllowlist([]string{devEmail, "second@example.com"})}
@@ -213,6 +225,10 @@ func TestAnimeDetailCachePolicy(t *testing.T) {
 	r = e.do("GET", "/v1/anime/52991", "")
 	if r.status != 200 || r.header.Get("X-Cache") != "STALE" || r.meta()["stale"] != true {
 		t.Fatalf("expected STALE fallback, got status=%d cache=%s meta=%v", r.status, r.header.Get("X-Cache"), r.meta())
+	}
+	// upstreamError is a class token, never the raw (internal) error string.
+	if r.meta()["upstreamError"] != "upstream_unavailable" {
+		t.Fatalf("upstreamError must be a token, got %v", r.meta()["upstreamError"])
 	}
 
 	// Unknown id -> 404 and negatively cached.
@@ -520,11 +536,315 @@ func TestJWTAuthentication(t *testing.T) {
 	}
 }
 
-// TestGoldenFixtures writes representative responses for the Swift package when UPDATE_GOLDEN=1.
-func TestGoldenFixtures(t *testing.T) {
-	if os.Getenv("UPDATE_GOLDEN") == "" {
-		t.Skip("set UPDATE_GOLDEN=1 to regenerate testdata/golden")
+// episodesFixture builds a small /anime/{id}/episodes payload (the repo only ships one).
+func episodesFixture(count int, from time.Time) []byte {
+	data := make([]map[string]any, 0, count)
+	for i := 1; i <= count; i++ {
+		data = append(data, map[string]any{
+			"mal_id": i,
+			"url":    fmt.Sprintf("https://myanimelist.net/anime/59978/episode/%d", i),
+			"title":  fmt.Sprintf("Episode %d", i),
+			"aired":  from.AddDate(0, 0, 7*(i-1)).Format(time.RFC3339),
+			"filler": false,
+			"recap":  false,
+		})
 	}
+	body, _ := json.Marshal(map[string]any{
+		"pagination": map[string]any{"last_visible_page": 1, "has_next_page": false},
+		"data":       data,
+	})
+	return body
+}
+
+// TestScheduleEpisodeBudget: includeEpisodes costs up to two Jikan calls per anime, so a long
+// watch list on a cold cache could blow the 25 s request budget. Past the budget the schedule
+// falls back to the weekly estimate and says so with meta.stale.
+func TestScheduleEpisodeBudget(t *testing.T) {
+	e := newEnv(t, nil)
+	e.jikan.RouteBytes("/anime/59978/episodes", episodesFixture(3, time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC)))
+	e.sched.SetEpisodeBudget(1)
+
+	e.do("PUT", "/v1/me/library/52991", `{"status":"watching","episodesWatched":1}`)
+	e.do("PUT", "/v1/me/library/59978", `{"status":"watching","episodesWatched":1}`)
+	// Both fixtures are finished shows; the schedule only lists airing ones.
+	e.exec(`UPDATE recanime.anime SET airing = true WHERE mal_id = ANY($1)`, []int{52991, 59978})
+
+	r := e.do("GET", "/v1/me/schedule?includeEpisodes=true", "")
+	if r.status != 200 {
+		t.Fatalf("schedule: %d %s", r.status, r.raw)
+	}
+	items, _ := r.body["data"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("expected both watched shows, got %s", r.raw)
+	}
+	sources := map[string]int{}
+	for _, it := range items {
+		item, _ := it.(map[string]any)
+		latest, _ := item["latestEpisode"].(map[string]any)
+		if latest == nil {
+			t.Fatalf("every item needs a latest episode: %v", item)
+		}
+		source, _ := latest["source"].(string)
+		sources[source]++
+	}
+	if sources["jikan"] != 1 || sources["estimate"] != 1 {
+		t.Fatalf("a budget of 1 must serve one exact and one estimated item, got %v", sources)
+	}
+	if r.meta()["stale"] != true {
+		t.Fatalf("an exhausted budget must be reported as stale: %v", r.meta())
+	}
+
+	// The budget only counts upstream calls: once cached, both items are exact again.
+	r = e.do("GET", "/v1/me/schedule?includeEpisodes=true", "")
+	items, _ = r.body["data"].([]any)
+	exact := 0
+	for _, it := range items {
+		item, _ := it.(map[string]any)
+		latest, _ := item["latestEpisode"].(map[string]any)
+		if latest["source"] == "jikan" {
+			exact++
+		}
+	}
+	if exact != 2 {
+		t.Fatalf("cache hits must be free, got %d exact items: %s", exact, r.raw)
+	}
+}
+
+// animeRecommendationsFixture is a /anime/{id}/recommendations payload pointing at 59978.
+func animeRecommendationsFixture() []byte {
+	body, _ := json.Marshal(map[string]any{
+		"data": []map[string]any{{
+			"entry": map[string]any{"mal_id": 59978, "url": "https://myanimelist.net/anime/59978", "title": "Sousou no Frieren 2nd Season",
+				"images": map[string]any{"jpg": map[string]string{"image_url": "https://cdn.example/x.jpg"}}},
+			"url": "https://myanimelist.net/recommendations/anime/52991-59978", "votes": 12,
+		}},
+	})
+	return body
+}
+
+// TestRecommendationsRespectSFW: recommendation entries carry no rating, so adult titles used to
+// reach users with sfw=true through both feeds.
+func TestRecommendationsRespectSFW(t *testing.T) {
+	e := newEnv(t, nil)
+	e.jikan.RouteBytes("/anime/52991/recommendations", animeRecommendationsFixture())
+
+	// Cache 59978 and flag it adult the way a real Rx-rated row would be.
+	if r := e.do("GET", "/v1/anime/59978", ""); r.status != 200 {
+		t.Fatalf("cache 59978: %d %s", r.status, r.raw)
+	}
+	e.exec(`UPDATE recanime.anime SET is_adult = true WHERE mal_id = $1`, 59978)
+
+	r := e.do("GET", "/v1/recommendations", "")
+	if items, _ := r.body["data"].([]any); r.status != 200 || len(items) != 0 {
+		t.Fatalf("a pair containing an adult title must be dropped: %d %s", r.status, r.raw)
+	}
+	r = e.do("GET", "/v1/anime/52991/recommendations", "")
+	if items, _ := r.body["data"].([]any); r.status != 200 || len(items) != 0 {
+		t.Fatalf("adult recommendations must be dropped: %d %s", r.status, r.raw)
+	}
+
+	// Turning SFW off brings them back.
+	if r := e.do("PATCH", "/v1/me/settings", `{"sfw":false}`); r.status != 200 {
+		t.Fatalf("patch settings: %d %s", r.status, r.raw)
+	}
+	e.now = e.now.Add(time.Minute) // past the live debounce
+	r = e.do("GET", "/v1/recommendations", "")
+	if items, _ := r.body["data"].([]any); len(items) != 1 {
+		t.Fatalf("without SFW the pair must come back: %s", r.raw)
+	}
+	r = e.do("GET", "/v1/anime/52991/recommendations", "")
+	if items, _ := r.body["data"].([]any); len(items) != 1 {
+		t.Fatalf("without SFW the recommendation must come back: %s", r.raw)
+	}
+}
+
+// adultListFixture is one list page whose only entry is Rx-rated.
+func adultListFixture(t *testing.T) []byte {
+	t.Helper()
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(testutil.ReadFixture(t, "jikan", "anime_full_52991.json"), &wrapper); err != nil {
+		t.Fatal(err)
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(wrapper.Data, &obj); err != nil {
+		t.Fatal(err)
+	}
+	obj["rating"] = "Rx - Hentai"
+	body, _ := json.Marshal(map[string]any{
+		"pagination": map[string]any{"last_visible_page": 3, "has_next_page": true, "current_page": 1,
+			"items": map[string]int{"count": 1, "total": 3, "per_page": 25}},
+		"data": []any{obj},
+	})
+	return body
+}
+
+// TestListSkipsFullyFilteredPage: a page whose entries are all adult used to answer with an empty
+// data array and hasNextPage=true, which the iOS loader cannot advance past (it asks for more only
+// when a row appears).
+func TestListSkipsFullyFilteredPage(t *testing.T) {
+	e := newEnv(t, nil)
+	adult := adultListFixture(t)
+	clean := listFixture(t, "anime_full_52991.json", "anime_full_59978.json")
+	e.jikan.RouteFunc("/top/anime", func(r *http.Request) []byte {
+		if r.URL.Query().Get("page") == "2" {
+			return clean
+		}
+		return adult
+	})
+
+	r := e.do("GET", "/v1/top", "")
+	items, _ := r.body["data"].([]any)
+	if r.status != 200 || len(items) != 2 {
+		t.Fatalf("the filtered page must be skipped forward: %d %s", r.status, r.raw)
+	}
+	pg, _ := r.body["pagination"].(map[string]any)
+	if pg["page"] != float64(2) {
+		t.Fatalf("pagination must report the page actually served: %v", pg)
+	}
+	if e.jikan.Hits("/top/anime") != 2 {
+		t.Fatalf("expected exactly two upstream pages, got %d", e.jikan.Hits("/top/anime"))
+	}
+
+	// Without the SFW filter the first page is served as-is.
+	e.do("PATCH", "/v1/me/settings", `{"sfw":false}`)
+	r = e.do("GET", "/v1/top", "")
+	items, _ = r.body["data"].([]any)
+	pg, _ = r.body["pagination"].(map[string]any)
+	if len(items) != 1 || pg["page"] != float64(1) {
+		t.Fatalf("without SFW the first page must be served: %s", r.raw)
+	}
+}
+
+// TestListSkipsFullyFilteredPageStopsAfterThreePages: an upstream that is adult forever (every
+// page reports hasNextPage=true, none ever has a clean entry) must not walk indefinitely. The
+// walk stops after 3 pages and answers with an empty page rather than pinning the request budget
+// on a hostile or broken upstream feed.
+func TestListSkipsFullyFilteredPageStopsAfterThreePages(t *testing.T) {
+	e := newEnv(t, nil)
+	e.jikan.RouteBytes("/top/anime", adultListFixture(t))
+
+	r := e.do("GET", "/v1/top", "")
+	items, _ := r.body["data"].([]any)
+	if r.status != 200 || len(items) != 0 {
+		t.Fatalf("expected an empty page once the walk budget is exhausted: %d %s", r.status, r.raw)
+	}
+	if e.jikan.Hits("/top/anime") != 3 {
+		t.Fatalf("expected exactly 3 upstream pages, no more, got %d", e.jikan.Hits("/top/anime"))
+	}
+	pg, _ := r.body["pagination"].(map[string]any)
+	if pg["page"] != float64(3) {
+		t.Fatalf("pagination must report the last page actually fetched (3), got %v", pg)
+	}
+}
+
+// TestPageBounds: page is a cache key, so an unbounded value mints permanent list_cache rows.
+// Every list endpoint shares the same bound (1..100), so this walks all of them.
+func TestPageBounds(t *testing.T) {
+	e := newEnv(t, nil)
+	for _, path := range []string{"/v1/top?page=101", "/v1/seasons/now?page=101", "/v1/seasons/upcoming?page=101",
+		"/v1/seasons/2023/fall?page=101", "/v1/search?q=frieren&page=9999", "/v1/schedules?day=monday&page=101",
+		"/v1/recommendations?page=101", "/v1/anime/52991/episodes?page=101"} {
+		if r := e.do("GET", path, ""); r.status != 400 || r.errCode() != "validation_error" {
+			t.Fatalf("%s must be rejected: %d %s", path, r.status, r.raw)
+		}
+	}
+	for _, path := range []string{"/v1/top?page=100", "/v1/seasons/now?page=100"} {
+		if r := e.do("GET", path, ""); r.status != 200 {
+			t.Fatalf("%s: page 100 is still valid: %d %s", path, r.status, r.raw)
+		}
+	}
+}
+
+// TestRateLimitRetryAfterHeader: Retry-After used to be hardcoded to 2 s while the limiter can
+// stay in cooldown for up to 30 s.
+func TestRateLimitRetryAfterHeader(t *testing.T) {
+	e := newEnv(t, nil)
+	e.jikan.FailNext(1, http.StatusTooManyRequests, "7")
+	r := e.do("GET", "/v1/anime/52991", "")
+	if r.status != http.StatusServiceUnavailable || r.errCode() != "upstream_rate_limited" {
+		t.Fatalf("expected 503 upstream_rate_limited, got %d %s", r.status, r.raw)
+	}
+	if got := r.header.Get("Retry-After"); got != "7" {
+		t.Fatalf("Retry-After = %q, want 7", got)
+	}
+	if r.header.Get("X-Request-Id") == "" {
+		t.Fatalf("every response must carry X-Request-Id: %v", r.header)
+	}
+}
+
+// TestEpisodeDeltaIsAtomic: the delta used to be a read-modify-write over three round trips, so
+// concurrent increments lost updates.
+func TestEpisodeDeltaIsAtomic(t *testing.T) {
+	e := newEnv(t, nil)
+	if r := e.do("PUT", "/v1/me/library/52991", `{"status":"watching","episodesWatched":0}`); r.status != 200 {
+		t.Fatalf("seed entry: %d %s", r.status, r.raw)
+	}
+
+	const concurrent = 10
+	errs := make(chan error, concurrent)
+	var wg sync.WaitGroup
+	for range concurrent {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req, err := http.NewRequestWithContext(context.Background(), "POST",
+				e.srv.URL+"/v1/me/library/52991/episodes", strings.NewReader(`{"delta":1}`))
+			if err != nil {
+				errs <- err
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			res, err := e.srv.Client().Do(req)
+			if err != nil {
+				errs <- err
+				return
+			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode != 200 {
+				errs <- fmt.Errorf("status %d", res.StatusCode)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent delta: %v", err)
+	}
+
+	r := e.do("GET", "/v1/me/library/52991", "")
+	entry, _ := r.data()["entry"].(map[string]any)
+	if entry["episodesWatched"] != float64(concurrent) {
+		t.Fatalf("expected %d episodes after %d concurrent deltas, got %v", concurrent, concurrent, entry["episodesWatched"])
+	}
+	if entry["status"] != "watching" {
+		t.Fatalf("status must stay watching: %v", entry)
+	}
+
+	// A pending entry starts watching as soon as progress is positive, and stays clamped.
+	e.do("PUT", "/v1/me/library/59978", `{"status":"pending"}`)
+	r = e.do("POST", "/v1/me/library/59978/episodes", `{"delta":1}`)
+	entry, _ = r.data()["entry"].(map[string]any)
+	if entry["status"] != "watching" || entry["episodesWatched"] != float64(1) {
+		t.Fatalf("progress on a pending entry starts it: %v", entry)
+	}
+	r = e.do("POST", "/v1/me/library/59978/episodes", `{"episodesWatched":999}`)
+	entry, _ = r.data()["entry"].(map[string]any)
+	if entry["episodesWatched"] != float64(10) {
+		t.Fatalf("absolute progress must stay clamped to the episode count: %v", entry)
+	}
+	r = e.do("POST", "/v1/me/library/59978/episodes", `{"delta":-99}`)
+	entry, _ = r.data()["entry"].(map[string]any)
+	if entry["episodesWatched"] != float64(0) {
+		t.Fatalf("progress must not go negative: %v", entry)
+	}
+}
+
+// TestGoldenFixtures keeps the Go responses and the Swift decoders in sync: every stored fixture
+// is compared with the live response (volatile fields normalized). UPDATE_GOLDEN=1 rewrites them.
+func TestGoldenFixtures(t *testing.T) {
 	e := newEnv(t, nil)
 	e.do("PUT", "/v1/me/library/52991", `{"status":"watching","episodesWatched":7,"favorite":true}`)
 	e.do("PUT", "/v1/me/library/59978", `{"status":"pending"}`)
@@ -545,8 +865,11 @@ func TestGoldenFixtures(t *testing.T) {
 		"error_validation.json": "/v1/top?filter=bogus",
 	}
 	dir := testutil.FixturePath(t, "golden")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
+	update := os.Getenv("UPDATE_GOLDEN") != ""
+	if update {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for name, path := range cases {
 		r := e.do("GET", path, "")
@@ -555,8 +878,85 @@ func TestGoldenFixtures(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		pretty.WriteByte('\n')
-		if err := os.WriteFile(filepath.Join(dir, name), pretty.Bytes(), 0o644); err != nil {
-			t.Fatal(err)
+		file := filepath.Join(dir, name)
+		if update {
+			if err := os.WriteFile(file, pretty.Bytes(), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		want, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("%s: %v (regenerate with %s)", name, err, regenerateHint)
+		}
+		got, expected := normalizeGolden(t, name, pretty.Bytes()), normalizeGolden(t, name, want)
+		if !reflect.DeepEqual(got, expected) {
+			t.Errorf("%s drifted from its golden fixture.\n got: %s\nwant: %s\nregenerate with %s",
+				name, compactJSON(got), compactJSON(expected), regenerateHint)
 		}
 	}
+}
+
+// TestGoldenNormalizationDetectsDrift proves the compare mode used by TestGoldenFixtures actually
+// catches drift instead of always agreeing: a real content difference must compare unequal, while
+// a difference confined to a volatile field (updatedAt) must still compare equal. This does not
+// need the database; it drives the same normalizeGolden/scrubVolatile helpers directly.
+func TestGoldenNormalizationDetectsDrift(t *testing.T) {
+	a := []byte(`{"data":{"title":"Sousou no Frieren","updatedAt":"2026-01-01T00:00:00Z"},"meta":{"cache":"HIT"}}`)
+	b := []byte(`{"data":{"title":"Sousou no Frieren 2nd Season","updatedAt":"2026-01-01T00:00:00Z"},"meta":{"cache":"HIT"}}`)
+	if reflect.DeepEqual(normalizeGolden(t, "doc", a), normalizeGolden(t, "doc", b)) {
+		t.Fatal("a real difference in a non-volatile field must not compare equal after normalization")
+	}
+
+	c := []byte(`{"data":{"title":"Sousou no Frieren","updatedAt":"2026-01-01T00:00:00Z"},"meta":{"cache":"HIT"}}`)
+	d := []byte(`{"data":{"title":"Sousou no Frieren","updatedAt":"2027-06-15T08:30:00Z"},"meta":{"cache":"HIT"}}`)
+	if !reflect.DeepEqual(normalizeGolden(t, "doc", c), normalizeGolden(t, "doc", d)) {
+		t.Fatalf("a difference confined to updatedAt must compare equal after normalization: %s vs %s",
+			compactJSON(normalizeGolden(t, "doc", c)), compactJSON(normalizeGolden(t, "doc", d)))
+	}
+}
+
+const regenerateHint = "UPDATE_GOLDEN=1 pnpm api:test:it && pnpm fixtures:sync"
+
+// volatileGoldenKeys change on every run by design and are blanked before comparing.
+var volatileGoldenKeys = map[string]bool{"createdAt": true, "updatedAt": true, "fetchedAt": true, "requestId": true}
+
+func normalizeGolden(t *testing.T, name string, raw []byte) any {
+	t.Helper()
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatalf("%s: decode: %v", name, err)
+	}
+	return scrubVolatile(v)
+}
+
+func scrubVolatile(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			if volatileGoldenKeys[k] && val != nil {
+				out[k] = "<volatile>"
+				continue
+			}
+			out[k] = scrubVolatile(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = scrubVolatile(val)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func compactJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(b)
 }

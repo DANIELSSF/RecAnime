@@ -3,6 +3,7 @@ package jikan
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Sentinel errors callers branch on.
@@ -18,7 +19,9 @@ type Error struct {
 	Status  int
 	Type    string
 	Message string
-	kind    error
+	// RetryAfter is the parsed Retry-After header (0 when absent); only 429 responses carry one.
+	RetryAfter time.Duration
+	kind       error
 }
 
 func (e *Error) Error() string {

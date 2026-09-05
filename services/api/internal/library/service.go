@@ -133,24 +133,13 @@ func (s *Service) AdjustEpisodes(ctx context.Context, userID string, malID int, 
 	if err != nil {
 		return model.LibraryItem{}, err
 	}
-	target := 0
-	if set != nil {
-		target = *set
-	} else {
-		current, err := s.store.GetLibraryEntry(ctx, userID, malID)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return model.LibraryItem{}, err
-		}
-		target = current.EpisodesWatched + *delta
+	// A zero episode count means "unknown" (still airing), so it must not clamp the progress.
+	total := row.Episodes
+	if total != nil && *total <= 0 {
+		total = nil
 	}
-	target = clamp(target, row.Episodes)
-	patch := store.LibraryPatch{EpisodesWatched: &target}
-	// Progress on a pending entry means the user started watching.
-	if existing, err := s.store.GetLibraryEntry(ctx, userID, malID); errors.Is(err, store.ErrNotFound) || (err == nil && existing.Status == model.StatusPending && target > 0) {
-		st := model.StatusWatching
-		patch.Status = &st
-	}
-	e, err := s.store.UpsertLibraryEntry(ctx, userID, malID, patch)
+	// One statement: read-modify-write in SQL so concurrent deltas cannot lose an increment.
+	e, err := s.store.AdjustEpisodes(ctx, userID, malID, set, delta, total)
 	if err != nil {
 		return model.LibraryItem{}, err
 	}

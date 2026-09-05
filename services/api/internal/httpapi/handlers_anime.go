@@ -48,7 +48,7 @@ func (s *Server) handleEpisodes(w http.ResponseWriter, r *http.Request) {
 		s.writeServiceError(w, r, err)
 		return
 	}
-	page, err := queryInt(r, "page", 1)
+	page, err := queryPage(r)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return
@@ -68,7 +68,7 @@ func (s *Server) handleAnimeRecommendations(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	p := mustPrincipal(r)
-	recs, res, err := s.deps.Catalog.AnimeRecommendations(r.Context(), p.UserID, id)
+	recs, res, err := s.deps.Catalog.AnimeRecommendations(r.Context(), p.UserID, s.sfwFor(r), id)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return

@@ -23,6 +23,20 @@ func (s *Store) ListCacheGet(ctx context.Context, key string) (payload json.RawM
 	return payload, fetchedAt, true, nil
 }
 
+// ListCacheSweep deletes cached list rows fetched longer ago than olderThan and returns how
+// many were removed. Nothing reads a row that old (the TTL is 12 h), but every distinct
+// page/search key would otherwise stay forever.
+func (s *Store) ListCacheSweep(ctx context.Context, olderThan time.Duration) (int64, error) {
+	if olderThan <= 0 {
+		return 0, nil
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM recanime.list_cache WHERE fetched_at < $1`, time.Now().Add(-olderThan))
+	if err != nil {
+		return 0, fmt.Errorf("list cache sweep: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ListCachePut stores or refreshes a cached list payload.
 func (s *Store) ListCachePut(ctx context.Context, key, kind string, payload json.RawMessage, fetchedAt time.Time, upstreamExpires *time.Time) error {
 	_, err := s.pool.Exec(ctx, `

@@ -90,6 +90,41 @@ func TestRateLimitedPenalizesAndDoesNotRetry(t *testing.T) {
 	}
 }
 
+// TestRateLimitedRetriesShortCooldown: the limiter blocks Wait for the announced cooldown, so a
+// short 429 is worth one in-request retry instead of failing a cold key outright.
+func TestRateLimitedRetriesShortCooldown(t *testing.T) {
+	c, fake, lim := newClient(t)
+	fake.FailNext(1, http.StatusTooManyRequests, "1")
+	res, err := c.AnimeFull(context.Background(), 52991)
+	if err != nil || res.Data.MalID != 52991 {
+		t.Fatalf("expected success after the retry, got %v", err)
+	}
+	if fake.Hits("/anime/52991/full") != 2 || lim.waits != 2 {
+		t.Fatalf("expected 2 attempts through the limiter, got hits=%d waits=%d", fake.Hits("/anime/52991/full"), lim.waits)
+	}
+	if len(lim.penalties) != 1 || lim.penalties[0] != time.Second {
+		t.Fatalf("expected one 1s penalty, got %v", lim.penalties)
+	}
+}
+
+// TestRateLimitedLongCooldownFailsFast: a cooldown longer than the retry budget is reported to the
+// caller (which turns it into Retry-After) instead of blocking the request.
+func TestRateLimitedLongCooldownFailsFast(t *testing.T) {
+	c, fake, _ := newClient(t)
+	fake.FailNext(1, http.StatusTooManyRequests, "20")
+	_, err := c.AnimeFull(context.Background(), 52991)
+	var je *Error
+	if !errors.Is(err, ErrRateLimited) || !errors.As(err, &je) {
+		t.Fatalf("expected ErrRateLimited, got %v", err)
+	}
+	if je.RetryAfter != 20*time.Second {
+		t.Fatalf("RetryAfter = %v, want 20s", je.RetryAfter)
+	}
+	if fake.Hits("/anime/52991/full") != 1 {
+		t.Fatalf("a long cooldown must not be retried, got %d hits", fake.Hits("/anime/52991/full"))
+	}
+}
+
 func TestServerErrorRetriesOnce(t *testing.T) {
 	c, fake, lim := newClient(t)
 	fake.FailNext(1, http.StatusBadGateway, "")
@@ -108,11 +143,12 @@ func TestServerErrorRetriesOnce(t *testing.T) {
 }
 
 func TestQueryEncoding(t *testing.T) {
-	q := ListQuery{Filter: "airing", Type: "tv", SFW: true, Page: 2, Limit: 25}.values()
-	if q.Get("filter") != "airing" || q.Get("type") != "tv" || q.Get("sfw") != "true" || q.Get("page") != "2" || q.Get("limit") != "25" {
+	q := ListQuery{Filter: "airing", Type: "tv", Page: 2, Limit: 25}.values()
+	// sfw is never forwarded: Jikan's own parameter is unreliable, the filter runs server-side.
+	if q.Get("filter") != "airing" || q.Get("type") != "tv" || q.Has("sfw") || q.Get("page") != "2" || q.Get("limit") != "25" {
 		t.Fatalf("unexpected list query: %v", q)
 	}
-	s := SearchQuery{Q: "frieren", OrderBy: "score", Sort: "desc", SFW: true}.values()
+	s := SearchQuery{Q: "frieren", OrderBy: "score", Sort: "desc"}.values()
 	if s.Get("q") != "frieren" || s.Get("order_by") != "score" || s.Get("sort") != "desc" || s.Has("page") {
 		t.Fatalf("unexpected search query: %v", s)
 	}

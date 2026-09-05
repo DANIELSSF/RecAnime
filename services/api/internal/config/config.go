@@ -37,10 +37,12 @@ type Config struct {
 	JikanRPS     int
 	JikanRPM     int
 
-	CacheTTL             time.Duration
-	SearchTTL            time.Duration
-	LiveDebounce         time.Duration
-	FranchiseFetchBudget int
+	CacheTTL              time.Duration
+	SearchTTL             time.Duration
+	LiveDebounce          time.Duration
+	FranchiseFetchBudget  int
+	ScheduleEpisodeBudget int
+	ListCacheRetention    time.Duration
 }
 
 // IsProduction reports whether the API runs with production safety rules.
@@ -130,6 +132,10 @@ func Load(getenv func(string) string) (Config, error) {
 		SearchTTL:            getDuration("SEARCH_TTL", 12*time.Hour),
 		LiveDebounce:         getDuration("LIVE_DEBOUNCE", 30*time.Second),
 		FranchiseFetchBudget: getInt("FRANCHISE_FETCH_BUDGET", 4),
+		// Upstream episode fetches allowed per /v1/me/schedule?includeEpisodes=true request.
+		ScheduleEpisodeBudget: getInt("SCHEDULE_EPISODE_BUDGET", 6),
+		// Age after which a list_cache row is swept; 0 disables the sweep.
+		ListCacheRetention: getDuration("LIST_CACHE_RETENTION", 168*time.Hour),
 	}
 
 	switch c.AppEnv {
@@ -148,6 +154,12 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	if c.FranchiseFetchBudget < 0 {
 		errs = append(errs, errors.New("FRANCHISE_FETCH_BUDGET: must be >= 0"))
+	}
+	if c.ScheduleEpisodeBudget < 0 {
+		errs = append(errs, errors.New("SCHEDULE_EPISODE_BUDGET: must be >= 0"))
+	}
+	if c.ListCacheRetention < 0 {
+		errs = append(errs, errors.New("LIST_CACHE_RETENTION: must be >= 0"))
 	}
 	if c.DevBypassAuth && c.AppEnv != EnvDevelopment {
 		// Refuse to start: the bypass must never reach a deployed binary.

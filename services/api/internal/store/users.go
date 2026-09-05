@@ -32,9 +32,28 @@ type SettingsPatch struct {
 }
 
 // UpsertUser records the user on first sight and refreshes profile fields afterwards.
+// A known email arriving with a different id (Supabase project recreated, user deleted and
+// re-added) re-keys the existing row instead of tripping app_user_email_lower_uidx; the FKs
+// cascade the new id so the user keeps their library and settings.
 func (s *Store) UpsertUser(ctx context.Context, id, email, displayName, avatarURL string) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+	_, err := s.RecordUser(ctx, id, email, displayName, avatarURL)
+	return err
+}
+
+// RecordUser is UpsertUser that also reports whether an existing row was re-keyed to a new id,
+// so the caller can log that rare, security-relevant event.
+func (s *Store) RecordUser(ctx context.Context, id, email, displayName, avatarURL string) (rekeyed bool, err error) {
+	err = s.withTx(ctx, func(tx pgx.Tx) error {
+		// The unique index on lower(email) guarantees at most one row can match, and it is the
+		// same person's previous auth id: a different account can never hold this email.
+		tag, err := tx.Exec(ctx, `
+			UPDATE recanime.app_user SET id = $1, last_seen_at = now()
+			WHERE lower(email) = lower($2) AND id <> $1`, id, email)
+		if err != nil {
+			return fmt.Errorf("rekey user: %w", err)
+		}
+		rekeyed = tag.RowsAffected() > 0
+		_, err = tx.Exec(ctx, `
 			INSERT INTO recanime.app_user (id, email, display_name, avatar_url)
 			VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''))
 			ON CONFLICT (id) DO UPDATE SET
@@ -53,6 +72,7 @@ func (s *Store) UpsertUser(ctx context.Context, id, email, displayName, avatarUR
 		}
 		return nil
 	})
+	return rekeyed, err
 }
 
 // GetUser returns the user with settings.

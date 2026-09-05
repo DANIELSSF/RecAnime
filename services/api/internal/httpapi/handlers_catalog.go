@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) listParams(r *http.Request) (catalog.ListParams, error) {
-	page, err := queryInt(r, "page", 1)
+	page, err := queryPage(r)
 	if err != nil {
 		return catalog.ListParams{}, err
 	}
@@ -99,7 +99,7 @@ func (s *Server) handleSeasonsIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request) {
-	page, err := queryInt(r, "page", 1)
+	page, err := queryPage(r)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return
@@ -113,7 +113,7 @@ func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
-	page, err := queryInt(r, "page", 1)
+	page, err := queryPage(r)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return
@@ -138,12 +138,12 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRecommendations(w http.ResponseWriter, r *http.Request) {
-	page, err := queryInt(r, "page", 1)
+	page, err := queryPage(r)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return
 	}
-	recs, pg, status, err := s.deps.Catalog.LiveRecommendations(r.Context(), mustPrincipal(r).UserID, page)
+	recs, pg, status, err := s.deps.Catalog.LiveRecommendations(r.Context(), mustPrincipal(r).UserID, s.sfwFor(r), page)
 	if err != nil {
 		s.writeServiceError(w, r, err)
 		return

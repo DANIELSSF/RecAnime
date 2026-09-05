@@ -35,6 +35,25 @@ func queryInt(r *http.Request, name string, def int) (int, error) {
 	return v, nil
 }
 
+// maxPage bounds every paginated endpoint: Jikan itself never has more, and an unbounded
+// page would mint a permanent list_cache row per value.
+const maxPage = 100
+
+// queryPage parses the shared `page` parameter (1..maxPage, default 1).
+func queryPage(r *http.Request) (int, error) {
+	v, err := queryInt(r, "page", 1)
+	if err != nil {
+		return 0, err
+	}
+	if v == 0 {
+		v = 1
+	}
+	if v > maxPage {
+		return 0, fmt.Errorf("%w: page must be between 1 and %d", errValidation, maxPage)
+	}
+	return v, nil
+}
+
 func queryBoolPtr(r *http.Request, name string) (*bool, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get(name))
 	if raw == "" {
@@ -81,9 +100,8 @@ func metaFor(status cache.Status, fetchedAt time.Time, upstreamErr error) *Meta 
 		t := fetchedAt.UTC()
 		m.FetchedAt = &t
 	}
-	if upstreamErr != nil {
-		msg := upstreamErr.Error()
-		m.UpstreamError = &msg
+	if token := upstreamErrorToken(upstreamErr); token != "" {
+		m.UpstreamError = &token
 	}
 	return m
 }

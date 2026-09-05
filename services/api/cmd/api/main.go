@@ -14,6 +14,8 @@ import (
 	"time"
 	_ "time/tzdata" // broadcast schedules convert JST; the distroless image has no zoneinfo
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/danielssf/recanime/services/api/internal/anime"
 	"github.com/danielssf/recanime/services/api/internal/auth"
 	"github.com/danielssf/recanime/services/api/internal/cache"
@@ -97,16 +99,24 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("DEV_BYPASS_AUTH is enabled: requests are NOT authenticated", "email", cfg.DevBypassEmail)
 	}
 
+	// A database that is down (Supabase paused, cold start during a blip) must not kill the
+	// revision: the pool is kept, /healthz stays green, /readyz answers 503 and pgxpool reconnects.
 	pool, err := db.Open(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
-	if err != nil {
+	if err != nil && (pool == nil || !errors.Is(err, db.ErrUnreachable)) {
 		return err
 	}
 	defer pool.Close()
-
-	if cfg.DBMigrateOnStart {
-		if err := db.Migrate(ctx, cfg.DatabaseURL, cfg.DBSessionLock, logger); err != nil {
-			return err
+	dbReady := make(chan struct{})
+	if err != nil {
+		logger.Error("database unreachable at startup, serving anyway", "error", err)
+		go waitForDatabase(ctx, cfg, pool, logger, dbReady)
+	} else {
+		if cfg.DBMigrateOnStart {
+			if err := db.Migrate(ctx, cfg.DatabaseURL, cfg.DBSessionLock, logger); err != nil {
+				return err
+			}
 		}
+		close(dbReady)
 	}
 
 	limiter := ratelimit.New(cfg.JikanRPS, cfg.JikanRPM)
@@ -116,7 +126,9 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	animeSvc := anime.NewService(st, jk, coord, cfg.CacheTTL, cfg.FranchiseFetchBudget, logger)
 	catalogSvc := catalog.NewService(st, jk, coord, cfg.CacheTTL, cfg.SearchTTL, cfg.LiveDebounce, logger)
 	librarySvc := library.NewService(st, animeSvc)
-	scheduleSvc := schedule.NewService(st, animeSvc, catalogSvc, logger)
+	scheduleSvc := schedule.NewService(st, animeSvc, catalogSvc, cfg.ScheduleEpisodeBudget, logger)
+
+	go sweepListCache(ctx, st, cfg.ListCacheRetention, logger, dbReady)
 
 	authCfg := httpapi.AuthConfig{
 		Allowlist:      auth.NewAllowlist(cfg.AllowedEmails),
@@ -179,4 +191,58 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return fmt.Errorf("shutdown: %w", err)
 	}
 	return nil
+}
+
+// waitForDatabase runs the pending migrations once the database answers again, retrying every
+// 30 s, and closes ready when the database is usable.
+func waitForDatabase(ctx context.Context, cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, ready chan<- struct{}) {
+	const retry = 30 * time.Second
+	for {
+		var err error
+		if cfg.DBMigrateOnStart {
+			err = db.Migrate(ctx, cfg.DatabaseURL, cfg.DBSessionLock, logger)
+		} else {
+			err = pool.Ping(ctx)
+		}
+		if err == nil {
+			logger.Info("database reachable")
+			close(ready)
+			return
+		}
+		logger.Warn("database still unreachable", "error", err, "retryIn", retry.String())
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(retry):
+		}
+	}
+}
+
+// sweepListCache deletes list_cache rows nothing can read any more: once the database is
+// reachable and then every 6 h. Without it every distinct page/search key stays forever.
+func sweepListCache(ctx context.Context, st *store.Store, retention time.Duration, logger *slog.Logger, ready <-chan struct{}) {
+	if retention <= 0 {
+		return
+	}
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		return
+	}
+	const interval = 6 * time.Hour
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		deleted, err := st.ListCacheSweep(ctx, retention)
+		if err != nil {
+			logger.WarnContext(ctx, "list cache sweep failed", "error", err)
+		} else {
+			logger.InfoContext(ctx, "list cache swept", "deleted", deleted, "retention", retention.String())
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

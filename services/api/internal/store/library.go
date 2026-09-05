@@ -98,6 +98,29 @@ func (s *Store) UpsertLibraryEntries(ctx context.Context, userID string, items [
 	return out, nil
 }
 
+// AdjustEpisodes moves the progress absolutely (set) or relatively (delta) in a single
+// statement, so concurrent deltas cannot lose an increment. total bounds the progress
+// (nil = unknown). A new row starts as "watching"; a pending row switches to "watching"
+// as soon as the resulting progress is positive; any other status is preserved.
+func (s *Store) AdjustEpisodes(ctx context.Context, userID string, malID int, set, delta, total *int) (LibraryEntry, error) {
+	// The clamped target, spelled out for the insert and the update branch.
+	const target = `LEAST(GREATEST(COALESCE($3::int, recanime.library_entry.episodes_watched + COALESCE($4::int, 0)), 0), COALESCE($5::int, 2147483647))`
+	e, err := scanEntry(s.pool.QueryRow(ctx, `
+		INSERT INTO recanime.library_entry (user_id, mal_id, status, favorite, episodes_watched)
+		VALUES ($1, $2, 'watching', false,
+			LEAST(GREATEST(COALESCE($3::int, $4::int, 0), 0), COALESCE($5::int, 2147483647)))
+		ON CONFLICT (user_id, mal_id) DO UPDATE SET
+			episodes_watched = `+target+`,
+			status = CASE WHEN recanime.library_entry.status = 'pending' AND `+target+` > 0
+			              THEN 'watching' ELSE recanime.library_entry.status END,
+			updated_at = now()
+		RETURNING `+entryColumns, userID, malID, set, delta, total))
+	if err != nil {
+		return LibraryEntry{}, fmt.Errorf("adjust episodes: %w", err)
+	}
+	return e, nil
+}
+
 // GetLibraryEntry returns one entry or ErrNotFound.
 func (s *Store) GetLibraryEntry(ctx context.Context, userID string, malID int) (LibraryEntry, error) {
 	e, err := scanEntry(s.pool.QueryRow(ctx, `SELECT `+entryColumns+` FROM recanime.library_entry

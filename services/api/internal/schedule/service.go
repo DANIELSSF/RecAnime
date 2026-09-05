@@ -20,15 +20,23 @@ type Service struct {
 	catalog *catalog.Service
 	logger  *slog.Logger
 	now     func() time.Time
+	// episodeBudget caps the upstream episode fetches one includeEpisodes request may spend.
+	episodeBudget int
 }
 
-// NewService wires the dependencies.
-func NewService(st *store.Store, an *anime.Service, cat *catalog.Service, logger *slog.Logger) *Service {
-	return &Service{store: st, anime: an, catalog: cat, logger: logger, now: time.Now}
+// NewService wires the dependencies. episodeBudget bounds the upstream episode calls per request.
+func NewService(st *store.Store, an *anime.Service, cat *catalog.Service, episodeBudget int, logger *slog.Logger) *Service {
+	if episodeBudget < 0 {
+		episodeBudget = 0
+	}
+	return &Service{store: st, anime: an, catalog: cat, logger: logger, now: time.Now, episodeBudget: episodeBudget}
 }
 
 // SetNow overrides the clock (tests).
 func (s *Service) SetNow(now func() time.Time) { s.now = now }
+
+// SetEpisodeBudget overrides the per-request episode budget (tests).
+func (s *Service) SetEpisodeBudget(n int) { s.episodeBudget = n }
 
 // Result is the schedule plus whether any anime row could not be refreshed.
 type Result struct {
@@ -37,13 +45,17 @@ type Result struct {
 }
 
 // ForUser lists the user's currently-watched, airing anime with their next airing time.
-// includeEpisodes spends up to two Jikan calls per anime to get the exact latest episode.
+// includeEpisodes spends up to two Jikan calls per anime to get the exact latest episode,
+// bounded by the per-request episode budget: cache hits are free, upstream fetches are not.
+// Once the budget runs out the remaining anime fall back to the weekly estimate and the
+// result is marked stale.
 func (s *Service) ForUser(ctx context.Context, userID string, includeEpisodes bool) (Result, error) {
 	rows, err := s.store.WatchingAiring(ctx, userID)
 	if err != nil {
 		return Result{}, err
 	}
 	now := s.now()
+	budget := s.episodeBudget
 	out := Result{Items: make([]model.ScheduleItem, 0, len(rows))}
 	for _, r := range rows {
 		row := r.Anime
@@ -60,12 +72,17 @@ func (s *Service) ForUser(ctx context.Context, userID string, includeEpisodes bo
 		if !row.Airing && (row.Status == nil || *row.Status != "Not yet aired") {
 			continue // finished since the library entry was created
 		}
-		out.Items = append(out.Items, s.item(ctx, row, r.Entry, now, includeEpisodes))
+		item, exhausted := s.item(ctx, row, r.Entry, now, includeEpisodes, &budget)
+		if exhausted {
+			out.Stale = true
+		}
+		out.Items = append(out.Items, item)
 	}
 	return out, nil
 }
 
-func (s *Service) item(ctx context.Context, row store.AnimeRow, e store.LibraryEntry, now time.Time, includeEpisodes bool) model.ScheduleItem {
+// item builds one schedule row; exhausted reports that the episode budget ran out for it.
+func (s *Service) item(ctx context.Context, row store.AnimeRow, e store.LibraryEntry, now time.Time, includeEpisodes bool, budget *int) (model.ScheduleItem, bool) {
 	it := model.ScheduleItem{
 		MalID:           row.MalID,
 		Title:           row.Title,
@@ -98,42 +115,63 @@ func (s *Service) item(ctx context.Context, row store.AnimeRow, e store.LibraryE
 		it.Reason = "unknown_broadcast"
 	}
 
-	it.LatestEpisode = s.latestEpisode(ctx, row, now, includeEpisodes)
+	var exhausted bool
+	it.LatestEpisode, exhausted = s.latestEpisode(ctx, row, now, includeEpisodes, budget)
 	if it.LatestEpisode != nil {
 		next := it.LatestEpisode.Number + 1
 		if row.Episodes == nil || next <= *row.Episodes {
 			it.NextEpisodeNumber = &next
 		}
 	}
-	return it
+	return it, exhausted
 }
 
 // latestEpisode uses Jikan's episode list when asked (or already cached) and estimates a weekly
-// cadence otherwise.
-func (s *Service) latestEpisode(ctx context.Context, row store.AnimeRow, now time.Time, includeEpisodes bool) *model.LatestEpisode {
+// cadence otherwise. exhausted reports that the budget denied an upstream episode fetch.
+func (s *Service) latestEpisode(ctx context.Context, row store.AnimeRow, now time.Time, includeEpisodes bool, budget *int) (*model.LatestEpisode, bool) {
+	var exhausted bool
 	if includeEpisodes {
-		if le := s.exactLatest(ctx, row.MalID, now); le != nil {
-			return le
+		le, spent := s.exactLatest(ctx, row.MalID, now, budget)
+		exhausted = spent
+		if le != nil {
+			return le, exhausted
 		}
 	}
 	if row.AiredFrom == nil || row.AiredFrom.After(now) {
-		return nil
+		return nil, exhausted
 	}
 	weeks := int(now.Sub(*row.AiredFrom).Hours()/(24*7)) + 1
 	if row.Episodes != nil && *row.Episodes > 0 && weeks > *row.Episodes {
 		weeks = *row.Episodes
 	}
 	aired := row.AiredFrom.AddDate(0, 0, 7*(weeks-1))
-	return &model.LatestEpisode{Number: weeks, AiredAt: &aired, Source: "estimate"}
+	return &model.LatestEpisode{Number: weeks, AiredAt: &aired, Source: "estimate"}, exhausted
 }
 
-func (s *Service) exactLatest(ctx context.Context, malID int, now time.Time) *model.LatestEpisode {
-	eps, pg, _, err := s.catalog.Episodes(ctx, malID, 1)
-	if err != nil {
-		return nil
+// exactLatest reads the episode list (page 1, then the last page). Every call that actually
+// reaches Jikan costs one unit of budget; cache hits are free. exhausted reports that the budget
+// was empty, so the caller falls back to the estimate and flags the response as stale.
+func (s *Service) exactLatest(ctx context.Context, malID int, now time.Time, budget *int) (*model.LatestEpisode, bool) {
+	episodes := func(pg int) ([]model.Episode, model.Pagination, bool, error) {
+		if *budget <= 0 {
+			return nil, model.Pagination{}, true, nil
+		}
+		eps, pagination, res, err := s.catalog.Episodes(ctx, malID, pg)
+		if res.Status != cache.Hit {
+			*budget--
+		}
+		return eps, pagination, false, err
+	}
+	eps, pg, exhausted, err := episodes(1)
+	if exhausted || err != nil {
+		return nil, exhausted
 	}
 	if pg.LastVisiblePage > 1 {
-		if last, _, _, err := s.catalog.Episodes(ctx, malID, pg.LastVisiblePage); err == nil && len(last) > 0 {
+		last, _, lastExhausted, err := episodes(pg.LastVisiblePage)
+		if lastExhausted {
+			// The first page is still usable; the exact latest may just be older than the truth.
+			exhausted = true
+		} else if err == nil && len(last) > 0 {
 			eps = last
 		}
 	}
@@ -148,7 +186,7 @@ func (s *Service) exactLatest(ctx context.Context, malID int, now time.Time) *mo
 		}
 	}
 	if latest == nil {
-		return nil
+		return nil, exhausted
 	}
-	return &model.LatestEpisode{Number: latest.Number, AiredAt: latest.Aired, Source: "jikan"}
+	return &model.LatestEpisode{Number: latest.Number, AiredAt: latest.Aired, Source: "jikan"}, exhausted
 }

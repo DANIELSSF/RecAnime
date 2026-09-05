@@ -12,7 +12,6 @@ type ListQuery struct {
 	Filter string // top: airing|upcoming|bypopularity|favorite ; seasons: tv|movie|ova|special|ona|music
 	Type   string // top: tv|movie|ova|special|ona|music|cm|pv|tv_special
 	Rating string // g|pg|pg13|r17|r|rx
-	SFW    bool
 	Page   int
 	Limit  int // 0 = Jikan default (25 max)
 }
@@ -22,9 +21,6 @@ func (q ListQuery) values() url.Values {
 	setIf(v, "filter", q.Filter)
 	setIf(v, "type", q.Type)
 	setIf(v, "rating", q.Rating)
-	if q.SFW {
-		v.Set("sfw", "true")
-	}
 	setPage(v, q.Page, q.Limit)
 	return v
 }
@@ -38,7 +34,6 @@ type SearchQuery struct {
 	Sort     string // asc|desc
 	Genres   string // comma-separated ids
 	MinScore string
-	SFW      bool
 	Page     int
 	Limit    int
 }
@@ -52,9 +47,6 @@ func (q SearchQuery) values() url.Values {
 	setIf(v, "sort", q.Sort)
 	setIf(v, "genres", q.Genres)
 	setIf(v, "min_score", q.MinScore)
-	if q.SFW {
-		v.Set("sfw", "true")
-	}
 	setPage(v, q.Page, q.Limit)
 	return v
 }
@@ -109,12 +101,10 @@ func (c *Client) SeasonsIndex(ctx context.Context) (*Response[[]SeasonIndex], er
 }
 
 // Schedules returns /schedules for a weekday (monday..sunday, unknown, other).
-func (c *Client) Schedules(ctx context.Context, day string, sfw bool, page, limit int) (*Response[[]Anime], error) {
+// The SFW filter is applied server-side from cached ratings, not by Jikan's own parameter.
+func (c *Client) Schedules(ctx context.Context, day string, page, limit int) (*Response[[]Anime], error) {
 	v := url.Values{}
 	setIf(v, "filter", day)
-	if sfw {
-		v.Set("sfw", "true")
-	}
 	setPage(v, page, limit)
 	return get[[]Anime](ctx, c, "/schedules", v)
 }

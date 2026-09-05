@@ -65,11 +65,17 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			return
 		}
 		if s.ensurer.due(p.UserID, time.Now()) {
-			if err := s.deps.Store.UpsertUser(r.Context(), p.UserID, p.Email, p.Name, p.AvatarURL); err != nil {
+			rekeyed, err := s.deps.Store.RecordUser(r.Context(), p.UserID, p.Email, p.Name, p.AvatarURL)
+			if err != nil {
 				s.ensurer.forget(p.UserID)
 				s.deps.Logger.ErrorContext(r.Context(), "ensure user", "error", err)
 				writeError(w, r, http.StatusInternalServerError, "internal", "could not record user")
 				return
+			}
+			if rekeyed {
+				// Same allow-listed email, new Supabase id: expected after an auth project rebuild,
+				// otherwise worth a look.
+				s.deps.Logger.WarnContext(r.Context(), "user re-keyed to a new auth id", "userId", p.UserID)
 			}
 		}
 		next.ServeHTTP(w, r.WithContext(auth.ContextWithPrincipal(r.Context(), &p)))

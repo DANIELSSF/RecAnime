@@ -37,15 +37,16 @@ type Server struct {
 	deps    Deps
 	router  chi.Router
 	ensurer *userEnsurer
+	ready   *readyState
 }
 
 // New builds the router with the full middleware chain.
 func New(deps Deps) *Server {
-	s := &Server{deps: deps, ensurer: &userEnsurer{seen: map[string]time.Time{}}}
+	s := &Server{deps: deps, ensurer: &userEnsurer{seen: map[string]time.Time{}}, ready: &readyState{}}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(requestLogger(deps.Logger))
-	r.Use(middleware.Recoverer)
+	r.Use(recoverPanics(deps.Logger))
 	r.Use(middleware.Compress(5, "application/json")) // list payloads shrink ~5x over cellular
 	r.Use(middleware.Timeout(25 * time.Second))
 	r.Use(maxBodyBytes(64 << 10))

@@ -38,8 +38,9 @@ type FakeJikan struct {
 	Server *httptest.Server
 
 	mu       sync.Mutex
-	routes   map[string]string // request path (no query) -> fixture file name
-	inline   map[string][]byte // request path -> literal JSON body
+	routes   map[string]string                     // request path (no query) -> fixture file name
+	inline   map[string][]byte                     // request path -> literal JSON body
+	dynamic  map[string]func(*http.Request) []byte // request path -> body built from the query
 	hits     map[string]int
 	failNext []failure
 }
@@ -52,7 +53,8 @@ type failure struct {
 // NewFakeJikan starts the fake server; call Close (or rely on t.Cleanup).
 func NewFakeJikan(t testing.TB) *FakeJikan {
 	t.Helper()
-	f := &FakeJikan{routes: map[string]string{}, inline: map[string][]byte{}, hits: map[string]int{}}
+	f := &FakeJikan{routes: map[string]string{}, inline: map[string][]byte{},
+		dynamic: map[string]func(*http.Request) []byte{}, hits: map[string]int{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(f.Server.Close)
 	return f
@@ -71,6 +73,14 @@ func (f *FakeJikan) RouteBytes(path string, body []byte) *FakeJikan {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inline[path] = body
+	return f
+}
+
+// RouteFunc serves a body built per request, so a route can vary by query (page, filter...).
+func (f *FakeJikan) RouteFunc(path string, fn func(r *http.Request) []byte) *FakeJikan {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.dynamic[path] = fn
 	return f
 }
 
@@ -111,6 +121,7 @@ func (f *FakeJikan) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	fixture, ok := f.routes[r.URL.Path]
 	inline, hasInline := f.inline[r.URL.Path]
+	fn, hasFunc := f.dynamic[r.URL.Path]
 	f.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -120,6 +131,10 @@ func (f *FakeJikan) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(fail.status)
 		_, _ = w.Write([]byte(`{"status":` + strconv.Itoa(fail.status) + `,"type":"Injected","message":"injected failure","error":null}`))
+		return
+	}
+	if hasFunc {
+		_, _ = w.Write(fn(r))
 		return
 	}
 	if hasInline {

@@ -79,8 +79,9 @@ func get[T any](ctx context.Context, c *Client, path string, q url.Values) (*Res
 		resp, err := c.do(ctx, u)
 		if err != nil {
 			lastErr = err
-			if errors.Is(err, ErrUpstream) {
-				continue // retry once
+			if errors.Is(err, ErrUpstream) || retriableRateLimit(err) {
+				// The limiter already absorbed the cooldown in Wait, so the retry is paced.
+				continue
 			}
 			return nil, err
 		}
@@ -140,7 +141,8 @@ func (c *Client) do(ctx context.Context, u string) ([]byte, error) {
 		e.kind = ErrNotFound
 	case resp.StatusCode == http.StatusTooManyRequests:
 		e.kind = ErrRateLimited
-		c.limiter.Penalize(retryAfter(resp.Header.Get("Retry-After")))
+		e.RetryAfter = retryAfter(resp.Header.Get("Retry-After"))
+		c.limiter.Penalize(e.RetryAfter)
 	case resp.StatusCode >= 500:
 		e.kind = ErrUpstream
 	case resp.StatusCode >= 400:
@@ -149,6 +151,22 @@ func (c *Client) do(ctx context.Context, u string) ([]byte, error) {
 		e.kind = ErrUpstream
 	}
 	return nil, e
+}
+
+// maxRetryAfterRetry is the longest upstream cooldown still worth retrying inside the request:
+// Penalize blocks Wait for exactly that long, and the request budget is 25 s.
+const maxRetryAfterRetry = 5 * time.Second
+
+// retriableRateLimit reports whether a 429 is worth one in-request retry.
+func retriableRateLimit(err error) bool {
+	if !errors.Is(err, ErrRateLimited) {
+		return false
+	}
+	var je *Error
+	if errors.As(err, &je) {
+		return je.RetryAfter <= maxRetryAfterRetry
+	}
+	return true
 }
 
 // retryAfter parses a Retry-After header in seconds; 0 lets the limiter apply its default.
