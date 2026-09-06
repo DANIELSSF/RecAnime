@@ -60,6 +60,7 @@ private struct SessionGate: View {
             if case .signedOut = state {
                 AppDependencies.shared.notifications.cancelAll()
                 AppDependencies.shared.watchSync.sendSignedOut()
+                Task { await AppDependencies.shared.resetLocalData() }
             }
         }
         .animation(.snappy, value: session.state)

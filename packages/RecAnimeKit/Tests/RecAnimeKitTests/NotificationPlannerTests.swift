@@ -33,7 +33,8 @@ struct NotificationPlannerTests {
             settings: .default
         )
         #expect(plan.map(\.episode) == [10, 11, 12])
-        #expect(plan.map(\.id) == ["ep.1.10", "ep.1.11", "ep.1.12"])
+        // ep.<malId>.<episode>.<yyyyMMddHHmm UTC>: 2026-08-17T21:53Z and the two weeks after it.
+        #expect(plan.map(\.id) == ["ep.1.10.202608172153", "ep.1.11.202608242153", "ep.1.12.202608312153"])
         #expect(plan[1].fireDate == first.addingTimeInterval(7 * 86400))
         #expect(plan[0].title == "Nuevo episodio: A")
         #expect(plan[0].body == "Ep. 10 ya disponible · Llevas 3/12")
@@ -85,7 +86,31 @@ struct NotificationPlannerTests {
             horizon: 86400
         )
         #expect(plan.count == 1)
-        #expect(plan[0].id.hasPrefix("ep.3.2026"))
+        #expect(plan[0].id == "ep.3.x.202608172054") // no episode number: "x" keeps the slot in the id
         #expect(plan[0].body.hasPrefix("Nuevo episodio disponible"))
+    }
+
+    @Test("ids are stable for the same airing and change when the slot moves")
+    func idStabilityAndShift() throws {
+        let first = now.addingTimeInterval(3600)
+        let schedule = [item(malId: 7, title: "D", next: first, nextEpisode: 5, total: 5)]
+        let plan = NotificationPlanner.plan(schedule: schedule, now: now, settings: .default)
+        let again = NotificationPlanner.plan(schedule: schedule, now: now, settings: .default)
+        #expect(plan.map(\.id) == again.map(\.id))
+        #expect(plan.map(\.id) == ["ep.7.5.202608172153"])
+
+        // The broadcast slot moved half an hour: same anime and episode, new id, so the scheduler
+        // diff removes the notification pinned to the old time instead of keeping it.
+        let moved = NotificationPlanner.plan(
+            schedule: [item(malId: 7, title: "D", next: first.addingTimeInterval(1800), nextEpisode: 5, total: 5)],
+            now: now,
+            settings: .default
+        )
+        let before = try #require(plan.first)
+        let after = try #require(moved.first)
+        #expect(after.id == "ep.7.5.202608172223")
+        #expect(after.id != before.id)
+        #expect(after.malID == before.malID)
+        #expect(after.episode == before.episode)
     }
 }

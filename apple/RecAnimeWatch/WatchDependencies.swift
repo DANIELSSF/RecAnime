@@ -75,6 +75,9 @@ final class WatchDependencies {
 
     /// Pulls fresh data, replays queued episode changes and refreshes the complication.
     func refresh(throttle: Bool) async {
+        // Always keep a wake-up queued, even when this run bails out: a skipped reschedule means the
+        // complication stops updating until the user opens the app.
+        Self.scheduleBackgroundRefresh()
         guard canUseAPI else { return }
         if throttle, let lastRefresh, Date.now.timeIntervalSince(lastRefresh) < 120 {
             return
@@ -90,7 +93,6 @@ final class WatchDependencies {
             lastRefresh = .now
             persistSnapshot()
         }
-        Self.scheduleBackgroundRefresh()
     }
 
     /// Records an episode as watched: local first, then the API (queued when offline).
@@ -154,7 +156,7 @@ final class WatchDependencies {
     private func persistSnapshot() {
         let snapshot = WatchSnapshot(watching: library.groups.watching, schedule: schedule.items, generatedAt: .now)
         try? appGroup.write(snapshot, file: AppGroupStore.snapshotFile)
-        ComplicationSnapshotWriter.write(schedule: schedule.items, store: appGroup)
+        ComplicationSnapshotWriter.write(schedule: schedule.items, library: library, store: appGroup)
     }
 
     /// Hint shown when the data is fresh but the outbox could not be drained.

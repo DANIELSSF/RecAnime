@@ -39,7 +39,8 @@ struct NextEpisodeProvider: TimelineProvider {
             let after = airing.addingTimeInterval(60)
             entries.append(NextEpisodeEntry(date: after, item: upcoming(items, at: after).first))
         }
-        let policy: TimelineReloadPolicy = entries.count > 1 ? .after(entries[1].date) : .atEnd
+        // A single entry with `.atEnd` never wakes the widget again; ask for an hourly check instead.
+        let policy: TimelineReloadPolicy = entries.count > 1 ? .after(entries[1].date) : .after(now.addingTimeInterval(3600))
         completion(Timeline(entries: entries, policy: policy))
     }
 

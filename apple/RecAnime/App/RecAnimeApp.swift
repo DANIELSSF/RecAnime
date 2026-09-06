@@ -26,6 +26,12 @@ struct RecAnimeApp: App {
                     guard phase == .active else { return }
                     deps.watchSync.activate()
                     Task { await deps.notifications.replanIfStale() }
+                    // The Watch or the other phone may have moved the library while we were away.
+                    Task { await deps.refreshLibrary(force: false) }
+                }
+                .onChange(of: deps.connectivity.isOnline) { _, isOnline in
+                    guard isOnline else { return }
+                    Task { await deps.refreshLibrary(force: false) }
                 }
                 .onChange(of: deps.library.version) { _, _ in
                     deps.notifications.scheduleReplan()
@@ -37,6 +43,7 @@ struct RecAnimeApp: App {
                     }
                 }
                 .task {
+                    deps.connectivity.start()
                     #if DEBUG
                         // `xcrun simctl launch <udid> com.danielsantiago.recanime -ra-open recanime://anime/52991`
                         let args = ProcessInfo.processInfo.arguments

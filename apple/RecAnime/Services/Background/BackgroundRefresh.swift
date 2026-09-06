@@ -12,9 +12,14 @@ enum BackgroundRefresh {
                 let deps = AppDependencies.shared
                 await deps.notifications.replan(requestPermission: false)
                 await deps.watchSync.pushSnapshot()
+                // Expiry already reported the failure; completing twice traps.
+                guard !Task.isCancelled else { return }
                 refresh.setTaskCompleted(success: true)
             }
-            refresh.expirationHandler = { work.cancel() }
+            refresh.expirationHandler = {
+                work.cancel()
+                refresh.setTaskCompleted(success: false)
+            }
             schedule()
         }
     }

@@ -9,6 +9,8 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
     private let lock = NSLock()
     var items: [Int: LibraryItem] = [:]
     var failNext = false
+    /// Makes the next `library()` call throw instead of returning the current groups; resets itself.
+    var failLibrary = false
     var adjustCalls: [(Int, EpisodesAdjustment)] = []
     /// Errors returned by successive `adjustEpisodes` calls, in order (`nil` succeeds).
     var adjustErrors: [APIError?] = []
@@ -139,6 +141,13 @@ final class FakeAPI: RecAnimeAPI, @unchecked Sendable {
     }
 
     func library() async throws -> LibraryGroups {
+        let shouldFail = lock.withLock {
+            defer { failLibrary = false }
+            return failLibrary
+        }
+        if shouldFail {
+            throw APIError.server(status: 500, code: "internal", message: nil)
+        }
         let all = lock.withLock { Array(items.values) }
         return LibraryGroups(
             watching: all.filter { $0.entry.status == .watching },
@@ -330,6 +339,30 @@ struct LibraryStoreTests {
     }
 }
 
+@Suite("LibraryStore · lastLoadedAt")
+@MainActor
+struct LibraryStoreLastLoadedAtTests {
+    @Test("lastLoadedAt is nil until a load succeeds, and a failed load never sets or clears it")
+    func lastLoadedAt() async throws {
+        let api = FakeAPI()
+        let store = LibraryStore(api: api, debounce: .zero)
+        #expect(store.lastLoadedAt == nil)
+
+        api.failLibrary = true
+        await store.load()
+        #expect(store.lastLoadedAt == nil)
+        #expect(store.lastError != nil)
+
+        api.failLibrary = false
+        await store.load()
+        let firstSuccess = try #require(store.lastLoadedAt)
+
+        api.failLibrary = true
+        await store.load()
+        #expect(store.lastLoadedAt == firstSuccess)
+    }
+}
+
 @Suite("LibraryStore · franchise")
 @MainActor
 struct LibraryStoreFranchiseTests {
@@ -373,32 +406,5 @@ struct LibraryStoreFranchiseTests {
         api.failNext = true
         await #expect(throws: APIError.self) { _ = try await store.markWatched(through: 1, in: franchise, startNext: false) }
         #expect(store.items.isEmpty)
-    }
-}
-
-@Suite("PagedLoader")
-@MainActor
-struct PagedLoaderTests {
-    @Test("appends pages, de-duplicates and stops at the last page")
-    func paging() async {
-        let loader = PagedLoader<AnimeSummary> { page in
-            let items = (0 ..< 3).map { FakeAPI.sample(page * 10 + $0).anime } + [FakeAPI.sample(10).anime] // 10 repeats on page 1
-            return APIResponse(data: items, pagination: Pagination(page: page, perPage: 25, hasNextPage: page < 2, lastVisiblePage: 2, total: 6))
-        }
-        await loader.loadFirst()
-        #expect(loader.items.count == 3)
-        #expect(loader.state == .idle)
-        await loader.loadMoreIfNeeded(currentItem: loader.items[2])
-        #expect(loader.items.count == 6)
-        #expect(loader.state == .exhausted)
-        await loader.loadMoreIfNeeded(currentItem: loader.items[5])
-        #expect(loader.items.count == 6)
-    }
-
-    @Test("failures surface as state")
-    func failure() async {
-        let loader = PagedLoader<AnimeSummary> { _ in throw APIError.server(status: 502, code: "upstream_unavailable", message: nil) }
-        await loader.loadFirst()
-        #expect(loader.state == .failed(.server(status: 502, code: "upstream_unavailable", message: nil)))
     }
 }

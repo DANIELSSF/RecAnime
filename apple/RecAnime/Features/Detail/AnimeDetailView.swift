@@ -18,6 +18,8 @@ struct AnimeDetailView: View {
     @State private var showsEpisodePicker = false
     @State private var progressTarget: ProgressTarget?
     @State private var actionError: String?
+    /// Episode titles loaded by the episodes section, reused to label the picker wheel.
+    @State private var episodeTitles: [Int: String] = [:]
 
     var body: some View {
         ScrollView {
@@ -87,6 +89,7 @@ struct AnimeDetailView: View {
                 EpisodePickerSheet(
                     title: detail.title,
                     total: detail.episodes,
+                    titles: episodeTitles,
                     selection: library.items[detail.malId]?.entry.episodesWatched ?? 0
                 ) { value in
                     Task { _ = try? await library.setEpisodes(value, for: detail.summary) }
@@ -122,6 +125,14 @@ struct AnimeDetailView: View {
                 report: { actionError = $0 }
             )
             .padding(.horizontal, Theme.Spacing.l)
+            if hasEpisodeList(detail) {
+                EpisodesSection(
+                    detail: detail,
+                    api: api,
+                    onTitles: { episodeTitles = $0 },
+                    report: { actionError = $0 }
+                )
+            }
             if let franchise = detail.franchise, FranchiseNavigator.hasChain(franchise) {
                 FranchiseChainSection(
                     malID: detail.malId,
@@ -137,6 +148,7 @@ struct AnimeDetailView: View {
                     }
                 )
             }
+            SimilarSection(malID: detail.malId, api: api)
             if let synopsis = detail.synopsis, !synopsis.isEmpty {
                 SynopsisView(text: synopsis).padding(.horizontal, Theme.Spacing.l)
             }
@@ -172,6 +184,9 @@ struct AnimeDetailView: View {
                 Text(alt.joined(separator: " · ")).font(.subheadline).foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
+                if detail.isAdult {
+                    AdultBadge()
+                }
                 if let type = detail.type {
                     badge(type)
                 }
@@ -183,7 +198,7 @@ struct AnimeDetailView: View {
                 }
                 StatusBadge(LocalizedStringKey(airingLabel(detail.airingStatus)), color: airingColor(detail.airingStatus))
                 if detail.score != nil {
-                    ScoreLabel(score: detail.score).padding(.horizontal, 8).frame(height: 20).background(
+                    ScoreLabel(score: detail.score).padding(.horizontal, 8).frame(minHeight: 20).background(
                         .quaternary,
                         in: Capsule()
                     )
@@ -196,7 +211,7 @@ struct AnimeDetailView: View {
             if !detail.genres.isEmpty {
                 WrapLayout(spacing: 6, rowSpacing: 6) {
                     ForEach(detail.genres, id: \.self) { genre in
-                        Text(genre).font(.caption.weight(.medium)).padding(.horizontal, 10).frame(height: 24)
+                        Text(genre).font(.caption.weight(.medium)).padding(.horizontal, 10).frame(minHeight: 24)
                             .background(.quaternary, in: Capsule())
                     }
                 }
@@ -209,7 +224,12 @@ struct AnimeDetailView: View {
     }
 
     private func badge(_ text: String) -> some View {
-        Text(text).font(.caption2.weight(.semibold)).padding(.horizontal, 8).frame(height: 20).background(.quaternary, in: Capsule())
+        Text(text).font(.caption2.weight(.semibold)).padding(.horizontal, 8).frame(minHeight: 20).background(.quaternary, in: Capsule())
+    }
+
+    /// Movies and one-shots have nothing to list; everything else gets the episodes section.
+    private func hasEpisodeList(_ detail: AnimeDetail) -> Bool {
+        detail.type != "Movie" && (detail.episodes ?? 1) > 1
     }
 
     private func airingLabel(_ status: AiringStatus) -> String {
@@ -412,7 +432,7 @@ struct DetailActionCluster: View {
                     ProgressPill(watched: watched, total: detail.episodes)
                     HStack {
                         if let total = detail.episodes {
-                            Text("Faltan \(max(total - watched, 0))").font(.footnote).foregroundStyle(.secondary)
+                            Text(remainingLabel(total: total)).font(.footnote).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button("Marcar temporada vista") {
@@ -424,6 +444,11 @@ struct DetailActionCluster: View {
             }
         }
         .animation(.snappy, value: status)
+    }
+
+    private func remainingLabel(total: Int) -> String {
+        let remaining = max(total - watched, 0)
+        return remaining == 1 ? "Falta 1" : "Faltan \(remaining)"
     }
 
     private func run(_ work: @escaping @MainActor () async throws -> Void) {
@@ -519,6 +544,11 @@ private struct FranchiseCard: View {
                             RoundedRectangle(cornerRadius: Theme.Radius.poster, style: .continuous).strokeBorder(Theme.accent, lineWidth: 2)
                         }
                     }
+                if entry.anime?.isAdult == true {
+                    AdultBadge()
+                        .padding(Theme.Spacing.xs)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
                 if isCurrent {
                     chip("Estás aquí", background: Theme.accent, foreground: .white)
                 } else if isNext {
@@ -547,7 +577,7 @@ private struct FranchiseCard: View {
 
     private func chip(_ text: String, background: Color, foreground: Color) -> some View {
         Text(text).font(.caption2.weight(.bold)).foregroundStyle(foreground)
-            .padding(.horizontal, 7).frame(height: 20).background(background, in: Capsule()).padding(6)
+            .padding(.horizontal, 7).frame(minHeight: 20).background(background, in: Capsule()).padding(6)
     }
 }
 

@@ -10,7 +10,7 @@ struct SearchView: View {
     let api: any RecAnimeAPI
     @State private var query = ""
     @State private var loader: PagedLoader<AnimeSummary>?
-    @AppStorage("ra.recentSearches") private var recentData = Data()
+    @AppStorage(AppDependencies.recentSearchesKey) private var recentData = Data()
 
     init(api: any RecAnimeAPI) {
         self.api = api
@@ -30,11 +30,14 @@ struct SearchView: View {
                     .zoomSource("search-\(anime.malId)", cornerRadius: Theme.Radius.thumb)
                     .task { await loader.loadMoreIfNeeded(currentItem: anime) }
                 }
-                if loader.state == .loadingMore {
+                if case let .failed(error) = loader.state, !loader.items.isEmpty {
+                    InlineRetryRow(message: error.userMessage) { Task { await loader.retryMore() } }
+                        .listRowInsets(EdgeInsets())
+                } else if loader.state == .loadingMore {
                     ProgressView().frame(maxWidth: .infinity)
                 }
             } else if !recents.isEmpty {
-                Section("Recientes") {
+                Section {
                     ForEach(recents, id: \.self) { term in
                         Button(term, systemImage: "clock") { query = term }
                             .foregroundStyle(.primary)
@@ -43,6 +46,18 @@ struct SearchView: View {
                         var list = recents
                         list.remove(atOffsets: offsets)
                         recents = list
+                    }
+                } header: {
+                    // Swiping is a shortcut, never the only way out: the header carries the visible action.
+                    HStack {
+                        Text("Recientes")
+                        Spacer(minLength: 0)
+                        Button("Borrar") { recents = [] }
+                            .font(.footnote)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Theme.accent)
+                            .frame(minHeight: 44)
+                            .accessibilityLabel("Borrar búsquedas recientes")
                     }
                 }
             }

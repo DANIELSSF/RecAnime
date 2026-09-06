@@ -6,18 +6,31 @@ public struct PosterCard: View {
     public let subtitle: String?
     public let imageURL: URL?
     public let progress: Double?
+    public let isAdult: Bool
     @ScaledMetric(relativeTo: .subheadline) private var width: CGFloat = 140
 
-    public init(title: String, subtitle: String? = nil, imageURL: URL?, progress: Double? = nil) {
+    public init(
+        title: String,
+        subtitle: String? = nil,
+        imageURL: URL?,
+        progress: Double? = nil,
+        isAdult: Bool = false
+    ) {
         self.title = title
         self.subtitle = subtitle
         self.imageURL = imageURL
         self.progress = progress
+        self.isAdult = isAdult
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             PosterImage(url: imageURL, width: width, height: width * 1.5)
+                .overlay(alignment: .topLeading) {
+                    if isAdult {
+                        AdultBadge().padding(Theme.Spacing.s)
+                    }
+                }
             if let progress {
                 ProgressView(value: progress)
                     .tint(Theme.accent)

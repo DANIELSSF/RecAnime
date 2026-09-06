@@ -50,10 +50,11 @@ struct MyListView: View {
                 .font(.footnote).foregroundStyle(.secondary)
                 .listRowSeparator(.hidden)
             ForEach(items) { item in
-                Button { router.open(item.anime, source: "library-\(item.anime.malId)", remembering: deps.summaries) } label: {
-                    LibraryRow(item: item)
-                }
-                .buttonStyle(.plain)
+                LibraryRow(
+                    item: item,
+                    open: { router.open(item.anime, source: "library-\(item.anime.malId)", remembering: deps.summaries) },
+                    reportError: { pendingError = $0 }
+                )
                 .zoomSource("library-\(item.anime.malId)", cornerRadius: Theme.Radius.thumb)
                 .accessibilityIdentifier("library-row-\(item.anime.malId)")
                 .listRowInsets(EdgeInsets(top: 10, leading: Theme.Spacing.l, bottom: 10, trailing: Theme.Spacing.l))
@@ -117,7 +118,7 @@ struct MyListView: View {
             ToolbarItem(placement: .topBarTrailing) { AvatarButton { showsSettings = true } }.sharedBackgroundVisibility(.hidden)
         }
         .sheet(isPresented: $showsSettings) { SettingsView() }
-        .refreshable { await library.load() }
+        .refreshable { await deps.refreshLibrary(force: true) }
         .alert("No se pudo guardar", isPresented: Binding(get: { pendingError != nil }, set: {
             if !$0 {
                 pendingError = nil
@@ -159,10 +160,34 @@ struct MyListView: View {
     }
 }
 
+/// One row of "Mi lista". The tappable area and the actions menu are siblings: the row button must
+/// not swallow the menu's tap, so the menu lives outside it.
 struct LibraryRow: View {
+    @Environment(LibraryStore.self) private var library
     let item: RecAnimeCore.LibraryItem
+    let open: () -> Void
+    let reportError: (String) -> Void
+    @State private var confirmRemove = false
 
     var body: some View {
+        HStack(spacing: Theme.Spacing.s) {
+            Button(action: open) { content }
+                .buttonStyle(.plain)
+            actionsMenu
+        }
+        .confirmationDialog(
+            "¿Quitar \(item.anime.title) de tu lista?",
+            isPresented: $confirmRemove,
+            titleVisibility: .visible
+        ) {
+            Button("Quitar", role: .destructive) {
+                run { try await library.remove(item.anime.malId) }
+            }
+            Button("Cancelar", role: .cancel) {}
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: Theme.Spacing.m) {
             PosterImage(url: item.anime.imageURL, width: 56, height: 84, cornerRadius: Theme.Radius.thumb)
             VStack(alignment: .leading, spacing: 6) {
@@ -186,5 +211,49 @@ struct LibraryRow: View {
                 .accessibilityLabel(item.entry.favorite ? "Favorito" : "No favorito")
         }
         .contentShape(Rectangle())
+    }
+
+    private var actionsMenu: some View {
+        Menu {
+            Picker("Estado", selection: statusBinding) {
+                ForEach([WatchStatus.pending, .watching, .watched], id: \.self) { status in
+                    Text(status.spanish).tag(status)
+                }
+            }
+            Button(
+                item.entry.favorite ? "Quitar favorito" : "Favorito",
+                systemImage: item.entry.favorite ? "heart.slash" : "heart"
+            ) {
+                run { _ = try await library.toggleFavorite(for: item.anime) }
+            }
+            Divider()
+            Button("Quitar de la lista", systemImage: "trash", role: .destructive) { confirmRemove = true }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title3)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Acciones de \(item.anime.title)")
+        .accessibilityIdentifier("library-actions-\(item.anime.malId)")
+    }
+
+    private var statusBinding: Binding<WatchStatus> {
+        Binding(
+            get: { item.entry.status },
+            set: { status in
+                guard status != item.entry.status else { return }
+                run { _ = try await library.setStatus(status, for: item.anime) }
+            }
+        )
+    }
+
+    private func run(_ work: @escaping @MainActor () async throws -> Void) {
+        Task {
+            do { try await work() } catch let error as APIError { reportError(error.userMessage) } catch {
+                reportError(error.localizedDescription)
+            }
+        }
     }
 }

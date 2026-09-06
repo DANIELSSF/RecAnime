@@ -27,4 +27,10 @@ final class SummaryCache {
     subscript(malID: Int) -> AnimeSummary? {
         summaries[malID]
     }
+
+    /// Sign-out: the next account must not see the previous one's titles during a zoom transition.
+    func clear() {
+        guard !summaries.isEmpty else { return }
+        summaries = [:]
+    }
 }

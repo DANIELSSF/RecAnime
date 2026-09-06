@@ -1,14 +1,18 @@
 import Foundation
+import Observation
 import RecAnimeCore
 
-/// Episode updates the Watch could not send; replayed as absolute values so duplicates are harmless.
-/// Survives relaunches through `UserDefaults`.
+/// Episode updates the app could not send; replayed as absolute values so duplicates are harmless.
+/// Survives relaunches through `UserDefaults`. Observable: `targets` is the tracked storage, so a
+/// pending badge refreshes as entries are queued and drained.
 @MainActor
+@Observable
 public final class EpisodeOutbox {
     private let defaults: UserDefaults
     private let key: String
     private var targets: [Int: Int]
-    private var isReplaying = false
+    /// Reentrancy guard, not UI state.
+    @ObservationIgnored private var isReplaying = false
 
     public init(defaults: UserDefaults = .standard, key: String = "ra.watch.outbox") {
         self.defaults = defaults

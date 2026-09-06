@@ -57,6 +57,14 @@ struct AnimeGrid<Header: View>: View {
                     actionTitle: "Reintentar"
                 ) { Task { await loader.loadFirst() } }
                     .padding(.top, 80)
+            } else if loader.items.isEmpty, loader.state == .exhausted {
+                // A filter combination the server has nothing for: not an error, just empty.
+                ContentUnavailableView(
+                    "Nada por aquí",
+                    systemImage: "sparkles.slash",
+                    description: Text("Prueba otro filtro o vuelve más tarde.")
+                )
+                .padding(.top, 80)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: minWidth), spacing: Theme.Spacing.m, alignment: .top)], spacing: Theme.Spacing.l) {
                     ForEach(loader.items) { anime in
@@ -69,7 +77,10 @@ struct AnimeGrid<Header: View>: View {
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.l)
-                if loader.state == .loadingMore || (loader.state == .loading && loader.items.isEmpty) {
+                if case let .failed(error) = loader.state {
+                    // Page 2+ failed with posters already on screen: paging stops until this row is tapped.
+                    InlineRetryRow(message: error.userMessage) { Task { await loader.retryMore() } }
+                } else if loader.state == .loadingMore || (loader.state == .loading && loader.items.isEmpty) {
                     ProgressView().padding()
                 }
             }

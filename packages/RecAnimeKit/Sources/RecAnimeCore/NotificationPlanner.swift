@@ -14,7 +14,10 @@ public struct NotificationSettings: Codable, Sendable, Hashable {
     public static let `default` = NotificationSettings()
 }
 
-/// One local notification to schedule. Identifiers are deterministic so re-planning is idempotent.
+/// One local notification to schedule. Identifiers are deterministic so re-planning is idempotent:
+/// `ep.<malId>.<episode|"x">.<yyyyMMddHHmm UTC of fireDate>`. The fire date is part of the id on
+/// purpose — a corrected airing time yields a new id, so the scheduler diff drops the stale one
+/// instead of keeping the notification pinned to the old slot.
 public struct PlannedNotification: Hashable, Sendable, Identifiable {
     public let id: String
     public let malID: Int
@@ -36,6 +39,7 @@ public struct PlannedNotification: Hashable, Sendable, Identifiable {
 /// Pure planner: expands each watched, airing anime into weekly notifications within a horizon,
 /// keeps the soonest `limit` (iOS allows 64 pending local notifications) and never fires in the past.
 public enum NotificationPlanner {
+    /// Every planned id starts with this; the app uses it to tell its own pending requests apart.
     public static let idPrefix = "ep."
 
     public static func plan(
@@ -75,15 +79,7 @@ public enum NotificationPlanner {
     }
 
     static func make(item: ScheduleItem, episode: Int?, fireDate: Date) -> PlannedNotification {
-        let suffix: String
-        if let episode {
-            suffix = "\(episode)"
-        } else {
-            let f = DateFormatter()
-            f.dateFormat = "yyyyMMddHHmm"
-            f.timeZone = TimeZone(identifier: "UTC")
-            suffix = f.string(from: fireDate)
-        }
+        let suffix = episode.map { "\($0)" } ?? "x"
         let progress = if let total = item.episodesTotal {
             "Llevas \(item.episodesWatched)/\(total)"
         } else {
@@ -91,12 +87,28 @@ public enum NotificationPlanner {
         }
         let body = episode.map { "Ep. \($0) ya disponible · \(progress)" } ?? "Nuevo episodio disponible · \(progress)"
         return PlannedNotification(
-            id: "\(idPrefix)\(item.malId).\(suffix)",
+            id: "\(idPrefix)\(item.malId).\(suffix).\(stamp(fireDate))",
             malID: item.malId,
             episode: episode,
             fireDate: fireDate,
             title: "Nuevo episodio: \(item.title)",
             body: body
+        )
+    }
+
+    /// `yyyyMMddHHmm` in UTC. Built from `Calendar` instead of a shared `DateFormatter` so it stays
+    /// value-only (Sendable) and locale-independent.
+    static func stamp(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(
+            format: "%04d%02d%02d%02d%02d",
+            parts.year ?? 0,
+            parts.month ?? 0,
+            parts.day ?? 0,
+            parts.hour ?? 0,
+            parts.minute ?? 0
         )
     }
 }

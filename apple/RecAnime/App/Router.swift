@@ -10,6 +10,7 @@ enum Route: Hashable {
     case seasonGrid(SeasonKind)
     case seasonBrowser
     case franchise(Int)
+    case calendar
 }
 
 enum SeasonKind: Hashable {
@@ -62,9 +63,18 @@ final class Router {
     }
 
     /// Pushes the anime page onto the current tab (or a specific one); `source` enables the zoom transition.
+    ///
+    /// A named `destination` comes from a deep link or a notification: it replaces that tab's path so
+    /// repeated taps land on the page instead of burying it under copies of itself. Within the current
+    /// tab, a page that is already on top is not pushed again.
     func open(anime malID: Int, source: String? = nil, in destination: AppTab? = nil) {
         if let destination {
             tab = destination
+            path(for: destination).wrappedValue = [.anime(malID, source: source)]
+            return
+        }
+        if case let .anime(top, _)? = path(for: tab).wrappedValue.last, top == malID {
+            return
         }
         path(for: tab).wrappedValue.append(.anime(malID, source: source))
     }
@@ -81,7 +91,8 @@ final class Router {
         guard url.scheme == Identifiers.urlScheme else { return false }
         switch url.host {
         case "anime":
-            guard let id = Int(url.lastPathComponent) else { return false }
+            // MAL ids start at 1; `recanime://anime/` and `.../0` are malformed links, not destinations.
+            guard let id = Int(url.lastPathComponent), id > 0 else { return false }
             open(anime: id, in: .library)
             return true
         case "library":

@@ -32,10 +32,10 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             switch action {
             case NotificationDelegate.markWatchedAction:
                 guard let episode else { return }
-                Task {
-                    _ = try? await deps.api.adjustEpisodes(malID, .set(episode))
-                    await deps.library.load()
-                }
+                // The action often fires with the app dead and the network off: queue the absolute
+                // value and let the refresh replay it (now, or on the next launch).
+                deps.outbox.enqueue(malID: malID, target: episode)
+                Task { await deps.refreshLibrary(force: true) }
             default:
                 deps.router.open(anime: malID, in: .library)
             }

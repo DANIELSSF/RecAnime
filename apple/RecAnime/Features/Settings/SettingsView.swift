@@ -15,6 +15,9 @@ struct SettingsView: View {
     @AppStorage("ra.notifications.enabled") private var notificationsEnabled = true
     @AppStorage("ra.notifications.offset") private var notificationOffset = 0
     @State private var confirmSignOut = false
+    /// Server-side content settings; nil while `GET /v1/me` is in flight.
+    @State private var settings: RecAnimeCore.Settings?
+    @State private var settingsError: String?
 
     var body: some View {
         NavigationStack {
@@ -26,6 +29,20 @@ struct SettingsView: View {
                     } else {
                         Label("Modo desarrollo: sin inicio de sesión", systemImage: "hammer")
                             .foregroundStyle(.secondary)
+                    }
+                }
+                Section("Contenido") {
+                    if let settings {
+                        Toggle("Ocultar contenido adulto", isOn: Binding(get: { settings.sfw }, set: { setSFW($0) }))
+                        LabeledContent("Zona horaria", value: settings.timezone)
+                        Text("Los datos vienen de MyAnimeList; los títulos +18 se ocultan de las listas y se marcan en la ficha.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: Theme.Spacing.m) {
+                            ProgressView()
+                            Text("Cargando ajustes…").foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Section("Notificaciones") {
@@ -94,6 +111,7 @@ struct SettingsView: View {
                     #endif
                 }
             }
+            .task { await loadSettings() }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Listo") { dismiss() } } }
@@ -106,9 +124,44 @@ struct SettingsView: View {
                         GoogleSignInCoordinator.signOut()
                         notifications.cancelAll()
                         watchSync.sendSignedOut()
+                        await deps.resetLocalData()
                         dismiss()
                     }
                 }
+            }
+            .alert("No se pudo guardar", isPresented: Binding(get: { settingsError != nil }, set: {
+                if !$0 {
+                    settingsError = nil
+                }
+            })) {
+                Button("Entendido", role: .cancel) {}
+            } message: { Text(settingsError ?? "") }
+        }
+    }
+
+    /// Reads the account settings and, silently, brings the server's timezone in line with the
+    /// device's — the API renders airing days in it, so a stale zone shifts the whole calendar.
+    private func loadSettings() async {
+        guard settings == nil else { return }
+        guard let loaded = try? await deps.api.me().settings else { return }
+        settings = loaded
+        let current = TimeZone.current.identifier
+        guard loaded.timezone != current else { return }
+        if let updated = try? await deps.api.updateSettings(SettingsPatch(timezone: current)) {
+            settings = updated
+        }
+    }
+
+    /// Optimistic toggle: the switch moves at once and rolls back with an alert if the PATCH fails.
+    private func setSFW(_ value: Bool) {
+        let previous = settings
+        settings?.sfw = value
+        Task {
+            do {
+                settings = try await deps.api.updateSettings(SettingsPatch(sfw: value))
+            } catch {
+                settings = previous
+                settingsError = (error as? APIError)?.userMessage ?? error.localizedDescription
             }
         }
     }

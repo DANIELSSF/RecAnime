@@ -35,7 +35,9 @@ extension UNUserNotificationCenter: NotificationCenterClient {
 }
 
 /// Applies a plan to the notification center: removes stale requests, adds missing ones.
-/// Identifiers are deterministic (`ep.<malId>.<episode>`) so applying the same plan twice is a no-op.
+/// Identifiers are deterministic (`ep.<malId>.<episode|"x">.<yyyyMMddHHmm UTC of the fire date>`), so
+/// applying the same plan twice is a no-op while a corrected airing time yields a new id: the diff below
+/// removes the stale request and adds the moved one.
 @MainActor
 final class LocalNotificationScheduler {
     private let center: any NotificationCenterClient

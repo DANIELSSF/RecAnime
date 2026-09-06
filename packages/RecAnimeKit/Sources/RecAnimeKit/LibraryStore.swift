@@ -13,6 +13,8 @@ public final class LibraryStore {
     public private(set) var version = 0
     public private(set) var isLoading = false
     public private(set) var lastError: APIError?
+    /// When `load()` last succeeded; lets the app skip a refresh that would be redundant.
+    public private(set) var lastLoadedAt: Date?
 
     private let api: any RecAnimeAPI
     private let debounce: Duration
@@ -50,6 +52,7 @@ public final class LibraryStore {
         do {
             let groups = try await api.library()
             apply(groups)
+            lastLoadedAt = .now
             lastError = nil
         } catch let error as APIError {
             lastError = error

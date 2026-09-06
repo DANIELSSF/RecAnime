@@ -32,6 +32,13 @@ struct SeasonView: View {
         .navigationTitle("Inicio")
         .navigationSubtitle(currentSeasonLabel)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink(value: Route.calendar) {
+                    Label("Calendario", systemImage: "calendar")
+                }
+                .accessibilityLabel("Calendario")
+                .accessibilityIdentifier("season.calendar")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 AvatarButton { showsSettings = true }
             }
@@ -39,20 +46,45 @@ struct SeasonView: View {
         }
         .sheet(isPresented: $showsSettings) { SettingsView() }
         .refreshable {
-            async let a: Void = now.loadFirst()
-            async let b: Void = upcoming.loadFirst()
-            async let c: Void = library.load()
+            async let a: Void = reload(now, key: AppDependencies.SnapshotKey.seasonNow)
+            async let b: Void = reload(upcoming, key: AppDependencies.SnapshotKey.seasonUpcoming)
+            async let c: Void = deps.refreshLibrary(force: true)
             _ = await (a, b, c)
         }
         .task {
             if now.items.isEmpty {
-                await now.loadFirst()
+                await hydrate(now, key: AppDependencies.SnapshotKey.seasonNow)
+                await reload(now, key: AppDependencies.SnapshotKey.seasonNow)
             }
             if upcoming.items.isEmpty {
-                await upcoming.loadFirst()
+                await hydrate(upcoming, key: AppDependencies.SnapshotKey.seasonUpcoming)
+                await reload(upcoming, key: AppDependencies.SnapshotKey.seasonUpcoming)
             }
         }
     }
+
+    /// Paints the last stored first page so a cold start offline is not an empty home.
+    private func hydrate(_ loader: PagedLoader<AnimeSummary>, key: String) async {
+        guard let cached = await deps.snapshots.load(
+            [AnimeSummary].self,
+            key: key,
+            maxAge: AppDependencies.seasonSnapshotMaxAge
+        ) else { return }
+        loader.seed(cached)
+    }
+
+    /// Loads page one and mirrors it to disk; a failure leaves the previous snapshot in place.
+    private func reload(_ loader: PagedLoader<AnimeSummary>, key: String) async {
+        await loader.loadFirst()
+        if case .failed = loader.state {
+            return
+        }
+        guard !loader.items.isEmpty else { return }
+        await deps.snapshots.save(Array(loader.items.prefix(Self.snapshotPageSize)), key: key)
+    }
+
+    /// One page of posters is all the carousel shows before "Ver todo".
+    private static let snapshotPageSize = 25
 
     private var continueWatching: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {

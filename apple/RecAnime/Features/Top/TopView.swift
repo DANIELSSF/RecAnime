@@ -67,6 +67,14 @@ struct TopView: View {
                             actionTitle: "Reintentar"
                         ) { Task { await loader.loadFirst() } }
                             .padding(.top, 80)
+                    case .exhausted:
+                        // Every page filtered out (type + filter combination with no titles).
+                        ContentUnavailableView(
+                            "Nada por aquí",
+                            systemImage: "sparkles.slash",
+                            description: Text("Prueba otro filtro o vuelve más tarde.")
+                        )
+                        .padding(.top, 80)
                     default: EmptyView()
                     }
                 }
@@ -81,7 +89,9 @@ struct TopView: View {
                     .task { await loader.loadMoreIfNeeded(currentItem: anime) }
                     Divider().padding(.leading, Theme.Spacing.l + 30 + Theme.Spacing.m)
                 }
-                if loader.state == .loadingMore || (loader.state == .loading && !loader.items.isEmpty) {
+                if case let .failed(error) = loader.state, !loader.items.isEmpty {
+                    InlineRetryRow(message: error.userMessage) { Task { await loader.retryMore() } }
+                } else if loader.state == .loadingMore || (loader.state == .loading && !loader.items.isEmpty) {
                     ProgressView().frame(maxWidth: .infinity).padding()
                 }
             }
