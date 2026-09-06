@@ -1,5 +1,7 @@
 #include "Base.xcconfig"
 
 RA_ENVIRONMENT = release
-// Cloud Run URL of services/api (set after the first deploy).
-API_BASE_URL = https:/$()/recanime-api.example.run.app
+// Cloud Run URL of services/api. The value lives in the gitignored Configs/Secrets.xcconfig
+// (included by Base.xcconfig) as API_BASE_URL_RELEASE; infra/gcp/deploy.sh prints the line to paste.
+// Left empty the app shows "Configuración incompleta" instead of falling back to localhost.
+API_BASE_URL = $(API_BASE_URL_RELEASE)

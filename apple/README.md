@@ -23,6 +23,11 @@ open RecAnime.xcodeproj
 Both `Local.xcconfig` and `Secrets.xcconfig` are gitignored. Without them the app still builds (auth is disabled until
 Supabase/Google values exist) and runs in the simulator without signing.
 
+Debug builds point at `http://localhost:8080` (override the host in `Local.xcconfig` for a physical device).
+**Release builds read `API_BASE_URL_RELEASE` from `Secrets.xcconfig`** — `infra/gcp/deploy.sh` prints the line to paste,
+already escaped for xcconfig. Without it the app opens on "Configuración incompleta" naming the missing key instead of
+silently falling back to localhost.
+
 ## Simulator
 
 The scripts target two simulators by their exact names: `iPhone 17 Pro` (iOS 26.5) and
@@ -45,7 +50,11 @@ WatchConnectivity works between them.
 
 1. Xcode › Settings › Accounts › add the Apple ID. Copy the 10-character team id into `Configs/Local.xcconfig`.
 2. iPhone and Watch: Settings › Privacy & Security › Developer Mode › on.
-3. Run the `RecAnime` scheme on the iPhone (cable); on first launch trust the developer in
+3. Sideloading talks to the deployed API, so build with the **Release** configuration: Product › Scheme › Edit Scheme ›
+   Run › Info › Build Configuration › Release, for both the `RecAnime` and `RecAnimeWatch` schemes.
+4. Run the `RecAnime` scheme on the iPhone (cable); on first launch trust the developer in
    Settings › General › VPN & Device Management. Run `RecAnimeWatch` on the paired Watch.
-4. Free-account limits: builds expire after 7 days (re-run from Xcode), at most 3 sideloaded apps per device,
+5. Free-account limits: builds expire after 7 days (re-run from Xcode), at most 3 sideloaded apps per device,
    10 App IDs per week (do not rename bundle ids), no push notifications / TestFlight.
+
+The full path from an empty Google/Supabase account to both apps running is `../docs/runbook.md`.

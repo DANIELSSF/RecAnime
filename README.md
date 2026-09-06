@@ -11,8 +11,8 @@ Monorepo: Go API (`services/api`), iOS 26 / watchOS 26 SwiftUI apps (`apple/`, `
 | `apple/` | XcodeGen project: `RecAnime` (iOS), `RecAnimeWatch` (watchOS), `RecAnimeWatchWidgets` |
 | `packages/RecAnimeKit` | Swift package: models, API client, stores (iOS + watchOS) |
 | `packages/RecAnimeUI` | Swift package: design tokens + reusable components |
-| `infra/` | Docker init scripts, Cloud Run deploy script |
-| `docs/` | API contract and design notes |
+| `infra/` | Docker init scripts, guarded Cloud Run scripts, database backup/restore |
+| `docs/` | API contract, deployment runbook, design notes |
 
 ## Prerequisites (macOS)
 
@@ -24,7 +24,7 @@ Monorepo: Go API (`services/api`), iOS 26 / watchOS 26 SwiftUI apps (`apple/`, `
 - `services/api`: complete — auth (Supabase JWKS + allowlist, dev bypass), 12 h Jikan cache with stale-on-error, catalog, library, franchise chain, schedule; unit + integration tests, golden fixtures, Cloud Run scripts. Recent hardening landed: server-side SFW filtering, filter-only browse on `/v1/search`, batch library upsert, user re-key, request budgets and resilient boot.
 - `apple/`: iOS app (all screens, Liquid Glass shell, local notifications, background refresh), Watch app (list, +1, outbox), complication. The phone↔watch session and sync path (WatchConnectivity with a dedicated Supabase session) landed. Verified in the iOS 26.5 / watchOS 26.5 simulators against the local API.
 - CI covers both sides: `api-ci` for Go, `swift-ci` for the Swift packages and the Xcode apps (see [CI](#ci)).
-- Pending user-side setup: Supabase project + Google OAuth clients (`apple/Configs/Secrets.xcconfig`, `.env`), Google Cloud project for Cloud Run, Apple ID in Xcode (`apple/Configs/Local.xcconfig`).
+- Pending user-side setup (browser + billing, nothing automatable): Supabase project + Google OAuth clients (`apple/Configs/Secrets.xcconfig`), Google Cloud project for Cloud Run, Apple ID in Xcode (`apple/Configs/Local.xcconfig`). **[docs/runbook.md](docs/runbook.md) walks through all of it step by step**, then covers day-2 operations (logs, rollback, key rotation, backups).
 
 ## Quick start
 
@@ -51,6 +51,25 @@ Apple side: `pnpm apple:gen` then open `apple/RecAnime.xcodeproj` (see `apple/RE
 `pnpm apple:test` runs the unit bundle only (`RecAnimeTests`); `pnpm apple:test:all` runs the whole scheme test action
 (unit + UI bundles, which self-skip unless their env flags are set). `pnpm apple:test:kit` and `pnpm apple:test:ui-pkg`
 run the Swift package suites without Xcode.
+
+## Deploy
+
+Everything is scripted behind guards: the scripts pin gcloud to the personal `recanime`
+configuration, refuse to run unless it is signed in as `GCP_ACCOUNT`, and print the whole plan
+without touching anything when `DRY_RUN=1`. Start at [docs/runbook.md](docs/runbook.md).
+
+```sh
+cp infra/gcp/.env.deploy.example infra/gcp/.env.deploy   # then fill it in
+set -a; . infra/gcp/.env.deploy; set +a
+DATABASE_URL='<supabase session pooler url>' sh infra/gcp/bootstrap.sh   # once
+make deploy-api                                          # sha-tagged image, /healthz verified
+sh infra/gcp/allowlist.sh 'a@example.com,b@example.com'   # who may sign in, no rebuild
+sh infra/gcp/rollback.sh                                  # list revisions, then roll one back
+```
+
+Back up the three tables that are not a rebuildable cache before every migration:
+`DATABASE_URL='…' make db-backup` writes `backups/recanime-<UTC>.dump`;
+`CONFIRM=yes make db-restore FILE=…` puts it back.
 
 ## CI
 

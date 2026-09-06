@@ -7,20 +7,38 @@ struct RootView: View {
     @Environment(AppDependencies.self) private var deps
 
     var body: some View {
-        if let session = deps.session {
-            SessionGate(session: session)
-        } else {
-            #if DEBUG
+        #if DEBUG
+            if let session = deps.session {
+                SessionGate(session: session)
+            } else {
                 MainTabView()
-            #else
+            }
+        #else
+            // A Release sideload with a missing API URL used to fall back to localhost and fail
+            // with "Sin conexión"; name the missing piece instead.
+            if let session = deps.session, deps.config.isAPIConfigured {
+                SessionGate(session: session)
+            } else {
                 EmptyStateView(
                     title: "Configuración incompleta",
-                    message: "Falta Secrets.xcconfig con la URL y la clave de Supabase.",
+                    message: missingConfiguration,
                     systemImage: "gearshape.2"
                 )
-            #endif
-        }
+            }
+        #endif
     }
+
+    #if !DEBUG
+        /// Supabase first: without it there is no session at all, whatever the API URL says.
+        private var missingConfiguration: LocalizedStringKey {
+            if deps.session == nil {
+                return deps.config.isAPIConfigured
+                    ? "Falta Secrets.xcconfig con la URL y la clave de Supabase."
+                    : "Falta Secrets.xcconfig: URL y clave de Supabase, y la URL de la API (API_BASE_URL_RELEASE)."
+            }
+            return "Falta la URL de la API (API_BASE_URL_RELEASE en Secrets.xcconfig)."
+        }
+    #endif
 }
 
 private struct SessionGate: View {

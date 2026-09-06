@@ -11,6 +11,13 @@ permissions: {}
 jobs:
   ping:
     runs-on: ubuntu-latest
-    if: ${{ vars.API_BASE_URL != '' }}
+    timeout-minutes: 5
+    # Set by infra/gcp/deploy.sh's follow-up step: Settings > Secrets and variables > Actions >
+    # Variables > API_BASE_URL. The job fails loudly until it exists, on purpose: a silently
+    # skipped keep-alive is how a project ends up paused.
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
     steps:
-      - run: curl -fsS --max-time 30 "${{ vars.API_BASE_URL }}/readyz"
+      - run: |
+          : "${API_BASE_URL:?set the API_BASE_URL repository variable (Settings → Secrets and variables → Actions)}"
+          curl -fsS --max-time 30 "$API_BASE_URL/readyz"

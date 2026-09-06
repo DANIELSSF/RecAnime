@@ -26,7 +26,7 @@ final class AppDependencies {
         session == nil
     }
 
-    init(config: AppConfig = AppConfig.load(apiBaseURLOverride: UserDefaults.standard.string(forKey: AppDependencies.apiOverrideKey))) {
+    init(config: AppConfig = AppConfig.load(apiBaseURLOverride: AppDependencies.debugAPIOverride)) {
         self.config = config
         let tokenProvider: any TokenProvider
         // The API client is the single choke point for lost access: it reports a dead session or a
@@ -57,6 +57,16 @@ final class AppDependencies {
     }
 
     static let apiOverrideKey = "ra.apiBaseURLOverride"
+
+    /// The Settings override only exists in Debug; a Release sideload installed over a Debug build
+    /// shares its UserDefaults and must never inherit a LAN URL from it.
+    private static var debugAPIOverride: String? {
+        #if DEBUG
+            UserDefaults.standard.string(forKey: apiOverrideKey)
+        #else
+            nil
+        #endif
+    }
 }
 
 /// Debug-only token provider for the API's DEV_BYPASS_AUTH mode (the server ignores the token).

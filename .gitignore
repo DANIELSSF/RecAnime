@@ -4,6 +4,8 @@
 !.env.example
 apple/Configs/Local.xcconfig
 apple/Configs/Secrets.xcconfig
+infra/gcp/.env.deploy
+!infra/gcp/.env.deploy.example
 *.p8
 *.p12
 *.mobileprovision
@@ -32,6 +34,9 @@ DerivedData/
 *.dSYM
 # packages/*/Package.resolved is committed on purpose: it pins the transitive SwiftPM graph.
 # (apple-gen seeds the generated project's own lock so xcodebuild does not overwrite it.)
+
+# --- database dumps (infra/db/backup.sh) ---
+backups/
 
 # --- OS / editors ---
 .DS_Store

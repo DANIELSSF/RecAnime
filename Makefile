@@ -9,12 +9,12 @@ WATCH_DEST := platform=watchOS Simulator,name=Apple Watch Series 11 (46mm),OS=26
 WS_RESOLVED := apple/RecAnime.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 .PHONY: help \
-	db-up db-down db-reset db-psql db-logs \
+	db-up db-down db-reset db-psql db-logs db-backup db-restore \
 	api api-build api-test api-test-it api-lint api-vet api-fmt \
 	migrate migrate-status api-docker-build api-docker-run lan \
 	apple-gen apple-build apple-test apple-test-all apple-test-kit apple-test-ui-pkg \
 	apple-watch-build apple-runtime-watch apple-fmt apple-lint apple-lint-tokens \
-	fixtures-sync deploy-api
+	fixtures-sync deploy-api gcp-bootstrap gcp-allowlist gcp-rollback
 
 help:             ## every target in this file
 	@awk -F: '/^[a-z-]+:/ { doc = ""; if (match($$0, /## /)) doc = substr($$0, RSTART + 3); printf "  %-20s %s\n", $$1, doc }' Makefile
@@ -33,6 +33,12 @@ db-psql:
 
 db-logs:          ## follow the database container logs
 	docker compose logs -f db
+
+db-backup:        ## dump the user tables to backups/ (DATABASE_URL=... make db-backup)
+	sh infra/db/backup.sh
+
+db-restore:       ## restore a dump: DATABASE_URL=... CONFIRM=yes make db-restore FILE=backups/xxx.dump
+	sh infra/db/restore.sh "$(FILE)"
 
 api: db-up        ## run the API locally (reads .env)
 	set -a && . ./.env && set +a && cd services/api && go run ./cmd/api serve
@@ -105,8 +111,17 @@ apple-lint-tokens:  ## fail on colors outside the design tokens
 fixtures-sync:    ## copy the Go golden files into the Swift fixtures
 	cp services/api/testdata/golden/*.json packages/RecAnimeKit/Sources/RecAnimeKitTesting/Fixtures/
 
-deploy-api:
+gcp-bootstrap:    ## one-time Cloud Run setup (DRY_RUN=1 to preview)
+	sh infra/gcp/bootstrap.sh
+
+deploy-api:       ## build a sha-tagged image and deploy it (DRY_RUN=1 to preview)
 	sh infra/gcp/deploy.sh
+
+gcp-allowlist:    ## who may sign in: make gcp-allowlist EMAILS=a@x.com,b@y.com
+	sh infra/gcp/allowlist.sh "$(EMAILS)"
+
+gcp-rollback:     ## list revisions, or make gcp-rollback REVISION=recanime-api-00007-abc
+	sh infra/gcp/rollback.sh "$(REVISION)"
 
 lan:              ## API in Docker, published on the LAN for a physical iPhone/Watch
 	docker build -t recanime-api:local services/api

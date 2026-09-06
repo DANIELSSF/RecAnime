@@ -1,0 +1,10 @@
+# What `gcloud builds submit services/api` must not upload. Mirrors .dockerignore, plus the
+# repository metadata and docs that never reach the image.
+.git
+.gitignore
+*.md
+
+bin/
+coverage.out
+*.test
+testdata/

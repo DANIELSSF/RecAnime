@@ -1,0 +1,21 @@
+# Build config used by infra/gcp/deploy.sh (gcloud builds submit --config).
+# The Dockerfile takes VERSION as a build ARG and stamps it into the binary, which /healthz
+# reports back; `gcloud run deploy --source` cannot set it, hence this explicit build.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VERSION=$_VERSION
+      - -t
+      - $_IMAGE:$_VERSION
+      - -t
+      - $_IMAGE:latest
+      - .
+
+images:
+  - $_IMAGE:$_VERSION
+  - $_IMAGE:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

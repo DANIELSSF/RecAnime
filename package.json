@@ -12,6 +12,8 @@
     "db:reset": "docker compose down -v && docker compose up -d db",
     "db:psql": "docker compose exec db psql -U recanime -d recanime",
     "db:logs": "docker compose logs -f db",
+    "db:backup": "sh infra/db/backup.sh",
+    "db:restore": "sh infra/db/restore.sh",
     "api:dev": "set -a && . ./.env && set +a && cd services/api && go run ./cmd/api serve",
     "api:build": "cd services/api && go build -trimpath -o bin/api ./cmd/api",
     "api:test": "cd services/api && go test ./... -race -count=1",
@@ -35,7 +37,10 @@
     "apple:lint": "swiftformat apple packages --lint",
     "fixtures:sync": "cp services/api/testdata/golden/*.json packages/RecAnimeKit/Sources/RecAnimeKitTesting/Fixtures/",
     "apple:lint:tokens": "sh apple/scripts/check-theme-tokens.sh",
+    "gcp:bootstrap": "sh infra/gcp/bootstrap.sh",
     "deploy:api": "sh infra/gcp/deploy.sh",
+    "gcp:allowlist": "sh infra/gcp/allowlist.sh",
+    "gcp:rollback": "sh infra/gcp/rollback.sh",
     "api:lan": "pnpm api:docker:build && pnpm api:docker:run"
   }
 }
