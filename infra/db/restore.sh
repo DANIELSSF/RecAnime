@@ -27,9 +27,13 @@ if [ ! -f "$FILE" ]; then
 fi
 ABS_FILE="$(CDPATH='' cd -- "$(dirname -- "$FILE")" && pwd)/$(basename -- "$FILE")"
 
-# Host of the target, so the confirmation prompt shows which database is about to be written to
-# without echoing the password.
-TARGET_HOST="$(printf '%s' "$DB_URL" | sed -n 's#^[a-z]*://\([^@]*@\)\{0,1\}\([^/?]*\).*$#\2#p')"
+# shellcheck source=infra/db/lib.sh
+. "$(dirname -- "$0")/lib.sh"
+pg_env_from_url "$DB_URL"
+unset DB_URL DATABASE_URL
+
+# Shown in the confirmation prompt so it is clear which database is about to be written to.
+TARGET_HOST="$PGHOST:$PGPORT/$PGDATABASE"
 
 # --exit-on-error matters: by default pg_restore reports "errors ignored" and still exits 0, which
 # would make a half-restored database look like a success.
@@ -51,31 +55,23 @@ if [ "${CONFIRM:-}" != "yes" ]; then
     exit 1
 fi
 
-local_pg_major() {
-    command -v pg_restore >/dev/null 2>&1 || return 0
-    pg_restore --version 2>/dev/null | sed -n 's/^.*[[:space:]]\([0-9][0-9]*\).*$/\1/p'
-}
+MAJOR="$(pg_major pg_restore)"
 
-MAJOR="$(local_pg_major)"
-case "$MAJOR" in
-    '' | *[!0-9]*) MAJOR=0 ;;
-esac
-
-# pg_restore needs -d to connect at all; the empty string makes libpq fall back to PGDATABASE, which
-# accepts a full URI, so the password stays out of every command line (host and container).
+# pg_restore needs -d to connect; the database NAME is not a secret, the rest of the connection comes
+# from the PG* variables exported by pg_env_from_url.
 if [ "$MAJOR" -ge 17 ]; then
     echo "==> pg_restore $MAJOR (local)"
     # shellcheck disable=SC2086  # FLAGS is a deliberate list of separate arguments.
-    PGDATABASE="$DB_URL" pg_restore $FLAGS -d '' "$ABS_FILE"
+    pg_restore $FLAGS -d "$PGDATABASE" "$ABS_FILE"
 else
     echo "==> pg_restore in Docker (postgres:17-alpine)"
-    CONTAINER_URL="$(printf '%s' "$DB_URL" | sed -e 's#@127\.0\.0\.1:#@host.docker.internal:#' -e 's#@localhost:#@host.docker.internal:#')"
-    PGDATABASE="$CONTAINER_URL" docker run --rm \
-        -e PGDATABASE \
+    # shellcheck disable=SC2086  # FLAGS is a deliberate list of separate arguments.
+    PGHOST="$(pg_host_for_docker)" docker run --rm \
+        -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE \
         --add-host host.docker.internal:host-gateway \
         -v "$ABS_FILE:/backup.dump:ro" \
         postgres:17-alpine \
-        sh -c "exec pg_restore $FLAGS -d '' /backup.dump"
+        pg_restore $FLAGS -d "$PGDATABASE" /backup.dump
 fi
 
 echo "restored $ABS_FILE"

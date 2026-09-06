@@ -19,6 +19,11 @@ if [ -z "$DB_URL" ]; then
     exit 2
 fi
 
+# shellcheck source=infra/db/lib.sh
+. "$(dirname -- "$0")/lib.sh"
+pg_env_from_url "$DB_URL"
+unset DB_URL DATABASE_URL
+
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 OUT_DIR="$REPO_ROOT/backups"
 OUT="$OUT_DIR/recanime-$(date -u +%Y%m%dT%H%M%SZ).dump"
@@ -31,37 +36,26 @@ mkdir -p "$OUT_DIR"
 # The three tables the app owns, in FK order (app_user first).
 TABLES='-t recanime.app_user -t recanime.user_settings -t recanime.library_entry'
 
-# Major version of the local pg_dump, or empty when there is none.
-local_pg_major() {
-    command -v pg_dump >/dev/null 2>&1 || return 0
-    pg_dump --version 2>/dev/null | sed -n 's/^.*[[:space:]]\([0-9][0-9]*\).*$/\1/p'
-}
-
-MAJOR="$(local_pg_major)"
-case "$MAJOR" in
-    '' | *[!0-9]*) MAJOR=0 ;;
-esac
+MAJOR="$(pg_major pg_dump)"
 
 # Written to a .partial first and only renamed on success, so a failed dump never leaves behind a
 # truncated file that looks like a backup.
 PARTIAL="$OUT.partial"
 trap 'rm -f "$PARTIAL"' EXIT INT TERM
 
-# libpq reads the connection URI from PGDATABASE (it behaves like the dbname parameter, which
-# accepts a full URI), so neither pg_dump nor the container command line ever carries the password.
+# The PG* variables exported by pg_env_from_url carry the connection; no argument does.
 if [ "$MAJOR" -ge 17 ]; then
     echo "==> pg_dump $MAJOR (local) -> $OUT"
     # shellcheck disable=SC2086  # TABLES is a deliberate list of separate -t arguments.
-    PGDATABASE="$DB_URL" pg_dump --no-owner --no-privileges -Fc $TABLES -f "$PARTIAL"
+    pg_dump --no-owner --no-privileges -Fc $TABLES -f "$PARTIAL"
 else
     echo "==> pg_dump in Docker (postgres:17-alpine) -> $OUT"
-    # Inside the container "localhost" is the container itself; point local URLs at the host.
-    CONTAINER_URL="$(printf '%s' "$DB_URL" | sed -e 's#@127\.0\.0\.1:#@host.docker.internal:#' -e 's#@localhost:#@host.docker.internal:#')"
-    PGDATABASE="$CONTAINER_URL" docker run --rm \
-        -e PGDATABASE \
+    # shellcheck disable=SC2086  # TABLES is a deliberate list of separate -t arguments.
+    PGHOST="$(pg_host_for_docker)" docker run --rm \
+        -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE \
         --add-host host.docker.internal:host-gateway \
         postgres:17-alpine \
-        sh -c "exec pg_dump --no-owner --no-privileges -Fc $TABLES" >"$PARTIAL"
+        pg_dump --no-owner --no-privileges -Fc $TABLES >"$PARTIAL"
 fi
 
 mv "$PARTIAL" "$OUT"
