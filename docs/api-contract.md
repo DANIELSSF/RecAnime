@@ -23,7 +23,9 @@ Errors: `{ "error": { "code", "message", "requestId" } }` with codes `validation
 `email_not_allowed` (403), `not_found` (404), `method_not_allowed` (405), `client_closed` (499),
 `upstream_rate_limited` (503 + `Retry-After`, mirroring upstream's own value clamped to 1–30 s),
 `upstream_unavailable` (502), `timeout` (504, the 25 s request budget expired), `internal` (500).
-The `X-Cache` header mirrors `meta.cache`; every response (success or error) carries `X-Request-Id`.
+The `X-Cache` header mirrors `meta.cache`; every response (success or error) carries `X-Request-Id`. A
+client-supplied `X-Request-Id` is echoed back only when it matches `^[A-Za-z0-9._-]{1,64}$`; any other value
+is replaced by a generated id.
 
 ## Cache policy
 

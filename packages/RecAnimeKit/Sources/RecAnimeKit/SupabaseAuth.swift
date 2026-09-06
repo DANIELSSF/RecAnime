@@ -5,11 +5,13 @@ import RecAnimeCore
 /// Builds Supabase Auth clients. Only the Auth product is used: the apps never talk to PostgREST.
 public enum SupabaseAuthFactory {
     /// Persistent client for the device session (Keychain-backed, auto refreshing).
+    /// The storage is `DeviceBoundKeychainStorage`, not the SDK's own: a session must not travel to
+    /// another device through an encrypted backup.
     public static func makeClient(url: URL, publishableKey: String, keychainService: String = Identifiers.keychainService) -> AuthClient {
         AuthClient(configuration: AuthClient.Configuration(
             url: url.appending(path: "auth/v1"),
             headers: ["apikey": publishableKey, "Authorization": "Bearer \(publishableKey)"],
-            localStorage: KeychainLocalStorage(service: keychainService),
+            localStorage: DeviceBoundKeychainStorage(service: keychainService),
             autoRefreshToken: true
         ))
     }

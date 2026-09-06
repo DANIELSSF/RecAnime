@@ -12,6 +12,9 @@ updates:
       go-minor-and-patch:
         update-types: [minor, patch]
 
+  # Every `uses:` is pinned to a commit SHA; this ecosystem moves the pin and rewrites the trailing
+  # version comment. The pinned release artifacts in swift-ci (SwiftFormat, XcodeGen) are not
+  # covered — bump their version and SHA-256 by hand.
   - package-ecosystem: github-actions
     directory: /
     schedule:

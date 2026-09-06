@@ -15,8 +15,9 @@ public struct AppConfig: Sendable, Equatable {
     public var supabaseURL: URL?
     public var supabasePublishableKey: String
     public var environment: Environment
-    /// False when the build carries no usable API URL: empty, unparsable, hostless, or still the
-    /// example placeholder. Release builds must say so instead of failing with "Sin conexión".
+    /// False when the build carries no usable API URL: empty, unparsable, hostless, still the
+    /// example placeholder, or plain http in a Release build. Release builds must say so instead of
+    /// failing with "Sin conexión".
     public var isAPIConfigured: Bool
 
     public init(
@@ -54,10 +55,14 @@ public struct AppConfig: Sendable, Equatable {
         let parsedAPI = apiString.isEmpty ? nil : URL(string: apiString)
         // A string without a host ("", "localhost:8080", garbage) still yields a relative URL.
         let apiHost = parsedAPI?.host?.lowercased()
-        let configured = apiHost.map { !$0.hasSuffix(placeholderHostSuffix) } ?? false
         let apiURL = parsedAPI ?? URL(string: "http://localhost:8080")!
         let supabase = URL(string: string("RASupabaseURL")).flatMap { $0.host == nil ? nil : $0 }
         let env = Environment(rawValue: string("RAEnvironment")) ?? .release
+        // Debug builds talk to a Mac on the LAN over http; a Release build that does the same would
+        // send bearer tokens in the clear, so it counts as unconfigured.
+        let isSecure = parsedAPI?.scheme?.lowercased() == "https" || env == .debug
+        let hasRealHost = apiHost.map { !$0.hasSuffix(placeholderHostSuffix) } ?? false
+        let configured = hasRealHost && isSecure
         return AppConfig(
             apiBaseURL: apiURL,
             supabaseURL: supabase,

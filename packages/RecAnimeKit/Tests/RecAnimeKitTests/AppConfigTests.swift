@@ -42,11 +42,31 @@ struct AppConfigTests {
     @Test("the override wins over the compiled value")
     func override() {
         let config = AppConfig.load(
-            info: info(api: "https://recanime-api.example.run.app"),
+            info: info(api: "https://recanime-api.example.run.app", env: "debug"),
             apiBaseURLOverride: "http://192.168.1.20:8080"
         )
         #expect(config.isAPIConfigured)
         #expect(config.apiBaseURL.host == "192.168.1.20")
+    }
+
+    @Test("a Release build pointed at plain http is not configured")
+    func releaseRejectsHTTP() {
+        let config = AppConfig.load(info: info(api: "http://192.168.1.20:8080"))
+        #expect(config.environment == .release)
+        #expect(config.isAPIConfigured == false)
+    }
+
+    @Test("a Debug build may point at plain http")
+    func debugAllowsHTTP() {
+        let config = AppConfig.load(info: info(api: "http://192.168.1.20:8080", env: "debug"))
+        #expect(config.isAPIConfigured)
+    }
+
+    @Test("a Release build over https is configured")
+    func releaseAllowsHTTPS() {
+        let config = AppConfig.load(info: info(api: "https://recanime-api-abcd-ue.a.run.app"))
+        #expect(config.environment == .release)
+        #expect(config.isAPIConfigured)
     }
 
     @Test("a blank override leaves the compiled value in place")

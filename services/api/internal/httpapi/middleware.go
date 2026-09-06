@@ -1,14 +1,42 @@
 package httpapi
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"runtime/debug"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+// requestIDPattern is the shape a client-supplied X-Request-Id must have to be trusted. The id is
+// reflected into the response header, the JSON error envelope and every log line, so anything with
+// control characters, quotes or an unbounded length is discarded in favour of a generated one.
+var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// requestID replaces chi's middleware.RequestID, which trusts the incoming header verbatim. It
+// stores the id under chi's own context key so middleware.GetReqID keeps working downstream.
+func requestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-Id")
+		if !requestIDPattern.MatchString(id) {
+			id = newRequestID()
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), middleware.RequestIDKey, id)))
+	})
+}
+
+// newRequestID returns 32 hex characters; crypto/rand.Read never fails.
+func newRequestID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
 
 // requestLogger emits one structured access-log line per request and echoes the request id,
 // so a user can quote it from a failing response.

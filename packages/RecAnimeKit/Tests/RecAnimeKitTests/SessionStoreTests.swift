@@ -1,5 +1,6 @@
 import Auth
 import Foundation
+import Observation
 @testable import RecAnimeCore
 @testable import RecAnimeKit
 @testable import RecAnimeKitTesting
@@ -33,12 +34,18 @@ private final class FakeAuthTransport: @unchecked Sendable {
     private let lock = NSLock()
     private var _requests: [URLRequest] = []
     private var _logoutFailure: (any Error)?
-    let userID: String
-    let userEmail: String
+    private var _holdLogout = false
+    private var _logoutIsInFlight = false
+    private var _user: (id: String, email: String)
 
     init(userID: String, userEmail: String) {
-        self.userID = userID
-        self.userEmail = userEmail
+        _user = (userID, userEmail)
+    }
+
+    /// The identity `GET /user` reports from now on, so a re-minted session can be told apart from
+    /// the one it replaces.
+    func switchUser(id: String, email: String) {
+        lock.withLock { _user = (id, email) }
     }
 
     var requests: [URLRequest] {
@@ -54,14 +61,37 @@ private final class FakeAuthTransport: @unchecked Sendable {
         lock.withLock { _logoutFailure = error }
     }
 
+    /// Parks `/logout` inside the transport until `releaseLogout`, so a test can look at the store
+    /// while the sign-out is in flight.
+    func holdLogout() {
+        lock.withLock { _holdLogout = true }
+    }
+
+    func releaseLogout() {
+        lock.withLock { _holdLogout = false }
+    }
+
+    var logoutIsInFlight: Bool {
+        lock.withLock { _logoutIsInFlight }
+    }
+
     func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
         lock.withLock { _requests.append(request) }
+        // A real suspension while the call is "in flight": an instantly-returning fetch never frees
+        // the main actor, so the auth-event observer would only ever run once the caller is done and
+        // the tests could not see the states the UI goes through mid-call.
+        try? await Task.sleep(for: .milliseconds(1))
         guard let path = request.url?.path else { throw URLError(.badURL) }
         if path.hasSuffix("/user") {
             let (response, data) = MockURLProtocol.json(200, userJSON, for: request)
             return (data, response)
         }
         if path.hasSuffix("/logout") {
+            lock.withLock { _logoutIsInFlight = true }
+            defer { lock.withLock { _logoutIsInFlight = false } }
+            while lock.withLock({ _holdLogout }) {
+                try? await Task.sleep(for: .milliseconds(1))
+            }
             if let failure = lock.withLock({ _logoutFailure }) {
                 throw failure
             }
@@ -72,7 +102,8 @@ private final class FakeAuthTransport: @unchecked Sendable {
     }
 
     private var userJSON: String {
-        #"{"id":"\#(userID)","aud":"authenticated","email":"\#(userEmail)","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","app_metadata":{},"user_metadata":{},"identities":[]}"#
+        let user = lock.withLock { _user }
+        return #"{"id":"\#(user.id)","aud":"authenticated","email":"\#(user.email)","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","app_metadata":{},"user_metadata":{},"identities":[]}"#
     }
 }
 
@@ -180,6 +211,78 @@ struct SessionStoreTests {
         #expect(user.email == "watch@b.c")
         #expect(user.id == id.lowercased())
         #expect(store.state == .signedIn(user))
+    }
+
+    @Test("adopting over an existing session revokes it first and ends signed in as the new user")
+    func adoptRevokesThePreviousSession() async throws {
+        let firstID = UUID().uuidString
+        let (store, transport) = try await makeSignedInStore(id: firstID, email: "first@b.c")
+        #expect(transport.logoutRequests.isEmpty)
+
+        let secondID = UUID().uuidString
+        transport.switchUser(id: secondID, email: "second@b.c")
+        try await store.adopt(WatchSession(
+            accessToken: makeAccessToken(sub: secondID, email: "second@b.c"),
+            refreshToken: "refresh-2",
+            expiresAt: .distantFuture,
+            userId: secondID,
+            email: "second@b.c",
+            mintedAt: .now
+        ))
+
+        #expect(transport.logoutRequests.count == 1)
+        #expect(transport.logoutRequests.first?.url?.query == "scope=local")
+        #expect(store.user?.id == secondID.lowercased())
+        #expect(store.user?.email == "second@b.c")
+        #expect(store.auth.currentSession?.refreshToken == "refresh-2")
+    }
+
+    @Test("adopting with no session in place sends no logout")
+    func adoptWithoutPreviousSessionSendsNoLogout() async throws {
+        let (_, transport) = try await makeSignedInStore()
+        #expect(transport.logoutRequests.isEmpty)
+    }
+
+    @Test("the swap never shows the signed-out screen, during or after it")
+    func adoptNeverPassesThroughSignedOut() async throws {
+        let (store, transport) = try await makeSignedInStore(email: "first@b.c")
+        store.bootstrap() // starts observing `auth.authStateChanges`, which emits `.signedOut` on the swap.
+        let firstUser = try #require(store.user)
+
+        let secondID = UUID().uuidString
+        transport.switchUser(id: secondID, email: "second@b.c")
+        // Park the logout so the widest point of the swap stays open: the old session is already
+        // revoked and the new one is not installed yet.
+        transport.holdLogout()
+        let adoption = Task {
+            try await store.adopt(WatchSession(
+                accessToken: makeAccessToken(sub: secondID, email: "second@b.c"),
+                refreshToken: "refresh-2",
+                expiresAt: .distantFuture,
+                userId: secondID,
+                email: "second@b.c",
+                mintedAt: .now
+            ))
+        }
+        while !transport.logoutIsInFlight {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        // The SDK emits `.signedOut` before the call it is now parked in, so by this point the
+        // observer has had every chance to act on it.
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(store.state == .signedIn(firstUser))
+        #expect(store.auth.currentSession == nil) // the old session really was dropped
+
+        transport.releaseLogout()
+        try await adoption.value
+        #expect(store.user?.id == secondID.lowercased())
+
+        // Drain the auth events: a `.signedOut` delivered after `adopt` returned must not land either.
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(store.user?.id == secondID.lowercased())
     }
 
     @Test("signOut defaults to the global scope and clears the message")

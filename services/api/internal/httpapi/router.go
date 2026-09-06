@@ -44,7 +44,7 @@ type Server struct {
 func New(deps Deps) *Server {
 	s := &Server{deps: deps, ensurer: &userEnsurer{seen: map[string]time.Time{}}, ready: &readyState{}}
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+	r.Use(requestID)
 	r.Use(requestLogger(deps.Logger))
 	r.Use(recoverPanics(deps.Logger))
 	r.Use(middleware.Compress(5, "application/json")) // list payloads shrink ~5x over cellular

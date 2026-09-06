@@ -18,8 +18,13 @@ type AuthConfig struct {
 	DevBypassEmail string // default principal when bypassing
 }
 
-// ensureInterval bounds how often the user row is refreshed from token claims.
-const ensureInterval = 10 * time.Minute
+const (
+	// ensureInterval bounds how often the user row is refreshed from token claims.
+	ensureInterval = 10 * time.Minute
+	// maxTrackedUsers is the size at which due() prunes stale entries, so the map cannot grow
+	// past the number of users actually active within one ensureInterval.
+	maxTrackedUsers = 1000
+)
 
 type userEnsurer struct {
 	mu   sync.Mutex
@@ -32,8 +37,21 @@ func (u *userEnsurer) due(userID string, now time.Time) bool {
 	if last, ok := u.seen[userID]; ok && now.Sub(last) < ensureInterval {
 		return false
 	}
+	if len(u.seen) >= maxTrackedUsers {
+		u.pruneLocked(now)
+	}
 	u.seen[userID] = now
 	return true
+}
+
+// pruneLocked drops users last seen more than one ensureInterval ago: their entry no longer
+// suppresses anything, so forgetting them is free.
+func (u *userEnsurer) pruneLocked(now time.Time) {
+	for id, last := range u.seen {
+		if now.Sub(last) >= ensureInterval {
+			delete(u.seen, id)
+		}
+	}
 }
 
 // authenticate resolves the caller, enforces the allowlist and records the user.

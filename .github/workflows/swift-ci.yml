@@ -30,20 +30,33 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Toolchain versions
         run: |
           xcodebuild -version
           swift --version
 
-      # Homebrew is preinstalled on the macOS runners; installing an already
-      # present formula is a no-op.
+      # Pinned release artifact instead of Homebrew: the formula moves with the tap, this does not.
+      # Bump SWIFTFORMAT_VERSION and SWIFTFORMAT_SHA256 together (shasum -a 256 swiftformat.zip).
       - name: Install SwiftFormat
-        run: brew install swiftformat
+        env:
+          SWIFTFORMAT_VERSION: 0.62.1
+          SWIFTFORMAT_SHA256: 7cb1cb1fae04932047c7015441c543848e8e60e1572d808d080e0a1f1661114a
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -fsSL --retry 3 -o swiftformat.zip \
+            "https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat.zip"
+          echo "${SWIFTFORMAT_SHA256}  swiftformat.zip" | shasum -a 256 -c -
+          unzip -oq swiftformat.zip -d swiftformat-unpacked
+          install -m 0755 swiftformat-unpacked/swiftformat "$RUNNER_TEMP/bin/swiftformat"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/swiftformat" --version
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
@@ -77,7 +90,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Select Xcode
         run: |
@@ -86,8 +99,26 @@ jobs:
           fi
           xcodebuild -version
 
-      - name: Install XcodeGen and xcbeautify
-        run: brew install xcodegen xcbeautify
+      # Pinned release artifact instead of Homebrew (see the SwiftFormat step). xcodegen reads its
+      # setting presets from ../share/xcodegen, so the whole layout is kept next to the binary.
+      - name: Install XcodeGen
+        env:
+          XCODEGEN_VERSION: 2.46.0
+          XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -fsSL --retry 3 -o xcodegen.zip \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  xcodegen.zip" | shasum -a 256 -c -
+          unzip -oq xcodegen.zip -d xcodegen-unpacked
+          install -m 0755 xcodegen-unpacked/xcodegen/bin/xcodegen "$RUNNER_TEMP/bin/xcodegen"
+          rm -rf "$RUNNER_TEMP/share/xcodegen"
+          mkdir -p "$RUNNER_TEMP/share"
+          cp -R xcodegen-unpacked/xcodegen/share/xcodegen "$RUNNER_TEMP/share/xcodegen"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/xcodegen" --version
 
       # Without a workspace lock, xcodebuild (verified with 26.6) rewrites the committed
       # packages/RecAnimeKit/Package.resolved with the app-level graph and never creates its own
@@ -100,7 +131,7 @@ jobs:
           [ -f "$ws/Package.resolved" ] || echo '{"pins":[],"version":3}' > "$ws/Package.resolved"
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
@@ -116,32 +147,44 @@ jobs:
             -scheme RecAnime \
             -derivedDataPath .dd
 
+      # xcodebuild output goes to a log and only the interesting lines are echoed: grep finding
+      # nothing must not fail the step, so `|| true` is on the grep and the exit code is xcodebuild's.
       - name: Build RecAnime (iOS)
         run: |
-          set -o pipefail
+          set -uo pipefail
           xcodebuild build \
             -project apple/RecAnime.xcodeproj \
             -scheme RecAnime \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath .dd \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > build-ios.log 2>&1
+          status=$?
+          grep -E 'error:|warning:|Test Suite|Executed|BUILD|TEST' build-ios.log || true
+          exit $status
 
       - name: Build RecAnimeWatch (watchOS)
         run: |
-          set -o pipefail
+          set -uo pipefail
           xcodebuild build \
             -project apple/RecAnime.xcodeproj \
             -scheme RecAnimeWatch \
             -destination 'generic/platform=watchOS Simulator' \
             -derivedDataPath .dd \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > build-watchos.log 2>&1
+          status=$?
+          grep -E 'error:|warning:|Test Suite|Executed|BUILD|TEST' build-watchos.log || true
+          exit $status
 
       # Tests need a real simulator, so pick whatever iPhone 17 runtime the
       # image ships instead of hard-coding a name and an OS version.
       - name: Run RecAnimeTests
         run: |
-          set -euo pipefail
+          set -uo pipefail
           UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone 17")))')
+          if [ -z "$UDID" ]; then
+            echo "::error::no available iPhone 17 simulator on this image"
+            exit 1
+          fi
           echo "Simulator UDID: $UDID"
           xcodebuild test \
             -project apple/RecAnime.xcodeproj \
@@ -150,12 +193,17 @@ jobs:
             -only-testing:RecAnimeTests \
             -derivedDataPath .dd \
             -resultBundlePath RecAnimeTests.xcresult \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | xcbeautify
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > test-ios.log 2>&1
+          status=$?
+          grep -E 'error:|warning:|Test Suite|Executed|BUILD|TEST' test-ios.log || true
+          exit $status
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: RecAnimeTests-xcresult
-          path: RecAnimeTests.xcresult
+          path: |
+            RecAnimeTests.xcresult
+            *.log
           if-no-files-found: ignore

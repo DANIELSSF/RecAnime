@@ -20,6 +20,9 @@ public final class SessionStore {
     public let auth: AuthClient
     public let tokenProvider: any TokenProvider
     private var observer: Task<Void, Never>?
+    /// Number of `adopt` swaps in flight: the local sign-out each performs emits a `.signedOut` event
+    /// that must not reach the UI. A counter, not a flag, so overlapping adoptions stay covered.
+    private var swapDepth = 0
 
     public init(auth: AuthClient) {
         self.auth = auth
@@ -43,11 +46,16 @@ public final class SessionStore {
                         state = .signedOut(message: nil)
                     }
                 case .signedOut:
-                    if case .signedIn = state {
-                        state = .signedOut(message: nil)
-                    }
-                    if case .loading = state {
-                        state = .signedOut(message: nil)
+                    // Two events are swallowed here, both from `adopt`'s session swap: the one
+                    // delivered while the swap is running, and the one delivered late, once the new
+                    // session is already installed. Either would flash the sign-in screen.
+                    if swapDepth == 0, auth.currentSession == nil {
+                        switch state {
+                        case .signedIn, .loading:
+                            state = .signedOut(message: nil)
+                        case .signedOut:
+                            break
+                        }
                     }
                 default:
                     break
@@ -68,9 +76,24 @@ public final class SessionStore {
     }
 
     /// Installs a session received from the iPhone (Watch).
+    ///
+    /// Every re-mint hands over a brand-new session family, so the one being replaced is revoked
+    /// server-side first (`.local` also clears the Keychain); otherwise it would stay valid until
+    /// the next global sign-out.
     public func adopt(_ watchSession: WatchSession) async throws {
-        let session = try await auth.setSession(accessToken: watchSession.accessToken, refreshToken: watchSession.refreshToken)
-        state = .signedIn(AuthUser(session: session))
+        swapDepth += 1
+        defer { swapDepth -= 1 }
+        if auth.currentSession != nil {
+            try? await auth.signOut(scope: .local)
+        }
+        do {
+            let session = try await auth.setSession(accessToken: watchSession.accessToken, refreshToken: watchSession.refreshToken)
+            state = .signedIn(AuthUser(session: session))
+        } catch {
+            // The old session is already gone: show the sign-in screen instead of a stale identity.
+            state = .signedOut(message: nil)
+            throw error
+        }
     }
 
     /// Signs out everywhere (`.global` also revokes the Watch session).

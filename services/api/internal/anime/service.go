@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -16,6 +17,13 @@ import (
 
 // ErrNotFound is returned for MAL ids Jikan does not know.
 var ErrNotFound = errors.New("anime: not found")
+
+const (
+	// negativeTTL is how long a 404 from Jikan is remembered.
+	negativeTTL = 10 * time.Minute
+	// maxNegativeEntries bounds the negative cache; it is fed by client-supplied ids.
+	maxNegativeEntries = 1000
+)
 
 // Service caches anime rows with the 12 h read-through policy.
 type Service struct {
@@ -146,5 +154,43 @@ func (s *Service) isNegativelyCached(malID int) bool {
 func (s *Service) rememberMissing(malID int) {
 	s.negMu.Lock()
 	defer s.negMu.Unlock()
-	s.neg[malID] = s.now().Add(10 * time.Minute)
+	now := s.now()
+	if len(s.neg) >= maxNegativeEntries {
+		s.pruneNegativeLocked(now)
+	}
+	s.neg[malID] = now.Add(negativeTTL)
+}
+
+// pruneNegativeLocked keeps the negative cache bounded: any client can grow it by asking for
+// unknown ids. Expired entries go first; if that is not enough, so does the older half. Losing an
+// entry only costs one extra upstream 404, so recency is the only thing worth preserving.
+func (s *Service) pruneNegativeLocked(now time.Time) {
+	for id, until := range s.neg {
+		if now.After(until) {
+			delete(s.neg, id)
+		}
+	}
+	if len(s.neg) < maxNegativeEntries {
+		return
+	}
+	// Every entry shares the same TTL, so the deadline orders them by insertion time. Ties (a coarse
+	// clock, a burst inside one tick) are broken by id so the cut is always exactly the older half,
+	// never "everything with this deadline".
+	type entry struct {
+		id    int
+		until time.Time
+	}
+	entries := make([]entry, 0, len(s.neg))
+	for id, until := range s.neg {
+		entries = append(entries, entry{id: id, until: until})
+	}
+	slices.SortFunc(entries, func(a, b entry) int {
+		if c := a.until.Compare(b.until); c != 0 {
+			return c
+		}
+		return a.id - b.id
+	})
+	for _, e := range entries[:len(entries)/2] {
+		delete(s.neg, e.id)
+	}
 }

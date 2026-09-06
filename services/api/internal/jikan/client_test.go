@@ -152,7 +152,37 @@ func TestQueryEncoding(t *testing.T) {
 	if s.Get("q") != "frieren" || s.Get("order_by") != "score" || s.Get("sort") != "desc" || s.Has("page") {
 		t.Fatalf("unexpected search query: %v", s)
 	}
-	if retryAfter("3") != 3*time.Second || retryAfter("") != 0 || retryAfter("bogus") != 0 {
-		t.Fatal("retryAfter parsing")
+}
+
+// TestRetryAfterClamped covers the Retry-After header: it is attacker-influenced (a hostile or
+// broken upstream picks it), so the parsed value must stay inside [0, 1 h] and never go negative.
+func TestRetryAfterClamped(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   time.Duration
+	}{
+		{name: "seconds", header: "7", want: 7 * time.Second},
+		{name: "padded", header: "  3  ", want: 3 * time.Second},
+		{name: "empty", header: "", want: 0},
+		{name: "not a number", header: "abc", want: 0},
+		{name: "http date", header: "Wed, 21 Oct 2026 07:28:00 GMT", want: 0},
+		{name: "zero", header: "0", want: 0},
+		{name: "negative", header: "-5", want: 0},
+		{name: "above the cap", header: "7200", want: maxRetryAfterSeconds * time.Second},
+		{name: "fits an int but not a Duration", header: "999999999999", want: maxRetryAfterSeconds * time.Second},
+		{name: "overflows int64", header: "99999999999999999999", want: maxRetryAfterSeconds * time.Second},
+		{name: "underflows int64", header: "-99999999999999999999", want: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := retryAfter(tc.header)
+			if got != tc.want {
+				t.Fatalf("retryAfter(%q) = %v, want %v", tc.header, got, tc.want)
+			}
+			if got < 0 {
+				t.Fatalf("retryAfter(%q) returned a negative duration: %v", tc.header, got)
+			}
+		})
 	}
 }

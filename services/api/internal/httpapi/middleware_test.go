@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +24,7 @@ func testServer() *Server {
 // error envelope with a request id, never an empty 500 plus an ANSI stack trace on stderr.
 func TestRecoverPanicsWritesJSONEnvelope(t *testing.T) {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+	r.Use(requestID)
 	r.Use(recoverPanics(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	r.Get("/boom", func(http.ResponseWriter, *http.Request) { panic("kaboom") })
 	r.Get("/late", func(w http.ResponseWriter, _ *http.Request) {
@@ -70,7 +72,7 @@ func TestRecoverPanicsWritesJSONEnvelope(t *testing.T) {
 // TestRequestIDHeader documents that every response carries X-Request-Id for support tickets.
 func TestRequestIDHeader(t *testing.T) {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+	r.Use(requestID)
 	r.Use(requestLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	r.Get("/ok", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) })
 	srv := httptest.NewServer(r)
@@ -95,7 +97,7 @@ func TestRequestIDHeader(t *testing.T) {
 func TestWriteServiceErrorTimeout(t *testing.T) {
 	s := testServer()
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+	r.Use(requestID)
 	r.Use(middleware.Timeout(50 * time.Millisecond))
 	r.Get("/slow", func(w http.ResponseWriter, req *http.Request) {
 		<-req.Context().Done()
@@ -119,5 +121,78 @@ func TestWriteServiceErrorTimeout(t *testing.T) {
 	detail, _ := body["error"].(map[string]any)
 	if res.StatusCode != http.StatusGatewayTimeout || detail["code"] != "timeout" {
 		t.Fatalf("expected 504 timeout, got %d %s", res.StatusCode, raw)
+	}
+}
+
+// TestRequestIDValidation covers the replacement for chi's middleware.RequestID: a client-supplied
+// id reaches the response header, the error envelope and the logs, so only short URL-safe values
+// are echoed back and everything else is replaced by a generated id.
+func TestRequestIDValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		echoed bool
+	}{
+		{name: "missing", header: "", echoed: false},
+		{name: "plain", header: "abc123", echoed: true},
+		{name: "uuid like", header: "5f2b8c1e-9a4d-4f77-b0d1-0c9a1e2f3b44", echoed: true},
+		{name: "dots and underscores", header: "recanime.ios_1-2.3", echoed: true},
+		{name: "max length", header: strings.Repeat("a", 64), echoed: true},
+		{name: "too long", header: strings.Repeat("a", 65), echoed: false},
+		{name: "newline", header: "abc\ndef", echoed: false},
+		{name: "quote", header: `abc"def`, echoed: false},
+		{name: "space", header: "abc def", echoed: false},
+		{name: "slash", header: "abc/def", echoed: false},
+		{name: "non ascii", header: "abcé", echoed: false},
+	}
+	generated := regexp.MustCompile(`^[0-9a-f]{32}$`)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var seen string
+			h := requestID(requestLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					seen = middleware.GetReqID(r.Context())
+					writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+				})))
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ok", nil)
+			if tc.header != "" {
+				req.Header.Set("X-Request-Id", tc.header)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			got := rec.Header().Get("X-Request-Id")
+			if got == "" {
+				t.Fatal("X-Request-Id missing from the response")
+			}
+			if got != seen {
+				t.Fatalf("response header %q differs from the context id %q", got, seen)
+			}
+			if tc.echoed {
+				if got != tc.header {
+					t.Fatalf("X-Request-Id = %q, want the client value %q", got, tc.header)
+				}
+				return
+			}
+			if got == tc.header {
+				t.Fatalf("X-Request-Id echoed the rejected value %q", tc.header)
+			}
+			if !generated.MatchString(got) {
+				t.Fatalf("generated X-Request-Id = %q, want 32 hex characters", got)
+			}
+		})
+	}
+}
+
+// TestNewRequestIDIsUnique guards against a generator that returns a constant.
+func TestNewRequestIDIsUnique(t *testing.T) {
+	seen := map[string]struct{}{}
+	for range 100 {
+		id := newRequestID()
+		if _, dup := seen[id]; dup {
+			t.Fatalf("duplicate request id %q", id)
+		}
+		seen[id] = struct{}{}
 	}
 }

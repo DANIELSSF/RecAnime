@@ -301,6 +301,30 @@ The free Apple ID signs builds for 7 days. When the app refuses to launch, plug 
 run the Release scheme from Xcode again (and the Watch scheme for the Watch). Nothing server-side is
 involved.
 
+### Known limitations
+
+Two accepted gaps, both harmless today but worth knowing before the repository or the sign-in flow
+changes hands.
+
+**The maintainer's personal email is in the public git history.** Every commit since the first one
+is authored with it, so it is readable by anyone who clones the repository. Removing it means
+rewriting the whole history (`git filter-repo --mailmap`) and force-pushing, which invalidates every
+existing clone and every commit SHA — including the ones `/healthz` reports and `rollback.sh` lists.
+The decision is the owner's; nothing in the app depends on it either way.
+
+**Google sign-in runs without a nonce.** The iOS app exchanges the Google ID token for a Supabase
+session without binding the token to a one-time value, so a token captured elsewhere for the same
+client id could in principle be replayed. The allowlist (`AUTH_ALLOWED_EMAILS`) still limits the
+blast radius to the two accounts that are allowed in at all. Adding the nonce is a four-step change,
+deliberately left until there is a live Supabase project to verify it against, because GoTrue
+rejects the whole sign-in when the two halves do not match:
+
+1. Generate a random raw nonce per sign-in attempt (32 bytes, base64url).
+2. Pass its SHA-256 **hex** digest to `GIDSignIn.signIn(withPresenting:hint:additionalScopes:nonce:)`.
+3. Pass the **raw** nonce to `OpenIDConnectCredentials(nonce:)` alongside the id token.
+4. Verify against a real project that GoTrue accepts it — sign in, and confirm a session comes back
+   instead of an "invalid nonce" error — before shipping the build.
+
 ---
 
 ## 10. Checklist

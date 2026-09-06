@@ -169,15 +169,28 @@ func retriableRateLimit(err error) bool {
 	return true
 }
 
-// retryAfter parses a Retry-After header in seconds; 0 lets the limiter apply its default.
+// maxRetryAfterSeconds clamps the Retry-After header before it becomes a duration: without a cap
+// an absurd value overflows the int64 multiplication into a negative delay. The limiter and the
+// client-facing header shorten anything this long to 30 s anyway.
+const maxRetryAfterSeconds = 3600
+
+// retryAfter parses a Retry-After header in seconds, clamped to [0, maxRetryAfterSeconds];
+// 0 lets the limiter apply its default.
 func retryAfter(v string) time.Duration {
-	if v == "" {
+	secs, err := strconv.Atoi(strings.TrimSpace(v))
+	// An out-of-range value still yields the saturated magnitude, which the clamp below handles;
+	// any other error means the header is not a plain number of seconds.
+	if err != nil && !errors.Is(err, strconv.ErrRange) {
 		return 0
 	}
-	if secs, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && secs > 0 {
+	switch {
+	case secs <= 0:
+		return 0
+	case secs > maxRetryAfterSeconds:
+		return maxRetryAfterSeconds * time.Second
+	default:
 		return time.Duration(secs) * time.Second
 	}
-	return 0
 }
 
 func setIf(q url.Values, key, val string) {
