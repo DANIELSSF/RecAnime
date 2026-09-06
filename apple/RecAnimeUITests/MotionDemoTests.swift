@@ -2,8 +2,9 @@ import XCTest
 
 /// Choreographed walk through the app used to record motion videos in the simulator.
 /// Skipped unless RA_MOTION_DEMO=1 (run with `TEST_RUNNER_RA_MOTION_DEMO=1 xcodebuild test ...`).
+@MainActor
 final class MotionDemoTests: XCTestCase {
-    override func setUpWithError() throws {
+    override nonisolated func setUpWithError() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
         continueAfterFailure = true
     }
@@ -91,8 +92,9 @@ final class MotionDemoTests: XCTestCase {
 }
 
 /// Short choreography for slow-motion recordings (UIAnimationDragCoefficient set on the simulator).
+@MainActor
 final class MotionZoomTests: XCTestCase {
-    override func setUpWithError() throws {
+    override nonisolated func setUpWithError() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
         continueAfterFailure = true
     }
@@ -126,8 +128,9 @@ final class MotionZoomTests: XCTestCase {
 }
 
 /// Opens the detail, the trailer sheet and the episode picker (screenshots are taken from the shell).
+@MainActor
 final class TrailerTests: XCTestCase {
-    override func setUpWithError() throws {
+    override nonisolated func setUpWithError() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
         continueAfterFailure = true
     }
@@ -158,8 +161,9 @@ final class TrailerTests: XCTestCase {
 }
 
 /// Scrolls the home so the tab bar minimizes; screenshots are taken from the shell.
+@MainActor
 final class InlineAccessoryTests: XCTestCase {
-    override func setUpWithError() throws {
+    override nonisolated func setUpWithError() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_MOTION_DEMO"] == "1", "motion demo only")
     }
 

@@ -23,8 +23,10 @@ updates:
     commit-message:
       prefix: chore(deps)
     groups:
-      actions-minor-and-patch:
-        update-types: [minor, patch]
+      # One PR for every Action bump, majors included: every `uses:` is SHA-pinned, so a major is
+      # just another pin move to review.
+      actions:
+        patterns: ["*"]
 
   - package-ecosystem: swift
     directory: /packages/RecAnimeKit

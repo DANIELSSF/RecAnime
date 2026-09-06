@@ -7,7 +7,7 @@ options:
   developmentLanguage: es
   createIntermediateGroups: true
   generateEmptyDirectories: true
-  xcodeVersion: "26.0"
+  xcodeVersion: "26.6"
 
 configs:
   Debug: debug

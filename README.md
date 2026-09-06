@@ -16,15 +16,17 @@ Monorepo: Go API (`services/api`), iOS 26 / watchOS 26 SwiftUI apps (`apple/`, `
 
 ## Prerequisites (macOS)
 
-- Xcode 26+, `brew install go golangci-lint xcodegen swiftformat`, Docker Desktop
-- Node ≥ 22.13 for pnpm (`nvm use` reads `.nvmrc`); pnpm is only a task runner, there are no JS dependencies
+- Xcode 26.1+ (CI uses 26.6), `brew install go golangci-lint xcodegen swiftformat`, Docker Desktop
+- Node ≥ 22.13 for pnpm (`.nvmrc` pins 24; `nvm use` reads it); pnpm is only a task runner, there are no JS dependencies
 
-## Status (2026-09-05)
+## Status (2026-09-06)
 
-- `services/api`: complete — auth (Supabase JWKS + allowlist, dev bypass), 12 h Jikan cache with stale-on-error, catalog, library, franchise chain, schedule; unit + integration tests, golden fixtures, Cloud Run scripts. Recent hardening landed: server-side SFW filtering, filter-only browse on `/v1/search`, batch library upsert, user re-key, request budgets and resilient boot.
-- `apple/`: iOS app (all screens, Liquid Glass shell, local notifications, background refresh), Watch app (list, +1, outbox), complication. The phone↔watch session and sync path (WatchConnectivity with a dedicated Supabase session) landed. Verified in the iOS 26.5 / watchOS 26.5 simulators against the local API.
-- CI covers both sides: `api-ci` for Go, `swift-ci` for the Swift packages and the Xcode apps (see [CI](#ci)).
-- Pending user-side setup (browser + billing, nothing automatable): Supabase project + Google OAuth clients (`apple/Configs/Secrets.xcconfig`), Google Cloud project for Cloud Run, Apple ID in Xcode (`apple/Configs/Local.xcconfig`). **[docs/runbook.md](docs/runbook.md) walks through all of it step by step**, then covers day-2 operations (logs, rollback, key rotation, backups).
+- `services/api`: complete — auth (Supabase JWKS + allowlist, dev bypass), 12 h Jikan cache with stale-on-error, catalog, library, franchise chain, schedule; unit + integration tests, golden fixtures. Hardened since: user re-key on identity change, per-request budgets, resilient boot (a missing dependency degrades instead of crashing), validated request ids and server-side SFW filtering.
+- `apple/`: iOS app (all screens, Liquid Glass shell, local notifications, background refresh), Watch app (list, +1, outbox), complication. Newer iOS work: offline snapshots, the calendar, the episode list and the "Similares" section, plus visible list actions. Verified in the iOS 26.5 / watchOS 26.5 simulators against the local API.
+- CI covers both sides: `api-ci` for Go on `ubuntu-latest`, `swift-ci` for the Swift packages and the Xcode apps on `macos-26` with a pinned toolchain — Xcode 26.6 selected explicitly, SwiftFormat and XcodeGen installed from SHA-256-checked release artifacts (see [CI](#ci)).
+- Deploy is scripted end to end: guarded gcloud scripts (`infra/gcp/`), sha-tagged versioned deploys with a `/healthz` gate, rollback, allowlist and database backup/restore, all walked through in **[docs/runbook.md](docs/runbook.md)**.
+- Security follow-ups landed: bounded API response maps, device-bound keychain storage, session revocation and the iPhone↔Watch credential handover, and Release builds that fail loudly on a missing `API_BASE_URL_RELEASE` instead of falling back to localhost.
+- Pending user-side setup (browser + billing, nothing automatable) is unchanged: Supabase project + Google OAuth clients (`apple/Configs/Secrets.xcconfig`), Google Cloud project for Cloud Run, Apple ID in Xcode (`apple/Configs/Local.xcconfig`). **[docs/runbook.md](docs/runbook.md) walks through all of it step by step**, then covers day-2 operations (logs, rollback, key rotation, backups).
 
 ## Quick start
 
@@ -80,3 +82,8 @@ Back up the three tables that are not a rebuildable cache before every migration
 
 Both workflows cancel superseded runs on the same ref. `.github/dependabot.yml` opens weekly updates for Go modules,
 GitHub Actions and the Swift package.
+
+## License
+
+All rights reserved — see [LICENSE](LICENSE). The code is public for reference only; it is not open
+source and carries no permission to use, copy, modify or distribute it.

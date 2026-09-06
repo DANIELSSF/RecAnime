@@ -2,8 +2,9 @@ import XCTest
 
 /// Writes PNG screenshots of key screens to `RA_SHOT_DIR` (host path; the simulator runner can write there).
 /// Skipped unless RA_SHOTS=1: `TEST_RUNNER_RA_SHOTS=1 TEST_RUNNER_RA_SHOT_DIR=/path xcodebuild test ...`.
+@MainActor
 final class ScreenshotTests: XCTestCase {
-    override func setUpWithError() throws {
+    override nonisolated func setUpWithError() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RA_SHOTS"] == "1", "screenshots only")
         continueAfterFailure = true
     }
