@@ -14,7 +14,7 @@ let package = Package(
         .library(name: "RecAnimeKitTesting", targets: ["RecAnimeKitTesting"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/supabase/supabase-swift", exact: "2.55.1"),
+        .package(url: "https://github.com/supabase/supabase-swift", exact: "2.55.2"),
     ],
     targets: [
         .target(
